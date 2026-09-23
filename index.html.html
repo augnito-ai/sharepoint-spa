@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Augnito — Investor KPI Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
+<style>
+:root{--ink:#0C0C0C;--paper:#fff;--faint:#F6F7F9;--rule:#E6E8EB;--muted:#6B7280;
+--g-bg:#DCFCE7;--g-tx:#15803D;--g:#16A34A;--a-bg:#FEF3C7;--a-tx:#B45309;--a:#F59E0B;--r-bg:#FEE2E2;--r-tx:#B91C1C;--r:#EF4444;
+--c1:#4F46E5;--c2:#0D9488;--c3:#7C3AED;--c4:#EA580C;--c5:#2563EB;--c6:#E11D48;--c7:#0891B2;--c8:#C026D3;--c9:#059669;
+--sb:#0C0C0C;--sb2:#17181B;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--sans:"Inter",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--faint);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.app{display:flex;align-items:flex-start}
+/* sidebar */
+.sidebar{width:216px;flex:none;background:var(--sb);color:#fff;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;overflow-y:auto}
+.sb-top{padding:20px 18px 8px}
+.sb-top img{height:26px;display:block;margin-bottom:14px}
+.sb-top .cap{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#7d828b;font-weight:700;line-height:1.5}
+.nav{display:flex;flex-direction:column;padding:12px 10px;gap:3px}
+.nav button{display:flex;align-items:center;gap:11px;text-align:left;border:none;background:none;color:#b6bac1;font-family:var(--sans);font-size:13.5px;font-weight:600;padding:11px 13px;border-radius:9px;cursor:pointer;border-left:3px solid transparent;transition:.13s}
+.nav button:hover{background:var(--sb2);color:#fff}
+.nav button.on{background:var(--sb2);color:#fff;border-left-color:var(--c1)}
+.nav button .ic{width:8px;height:8px;border-radius:2px;background:currentColor;flex:none;opacity:.9}
+.sb-data{margin-top:auto;padding:16px 16px 10px;border-top:1px solid #232427}
+.sb-data h4{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:#7d828b;margin:0 0 11px;font-weight:800}
+.btn{display:block;width:100%;text-align:center;font-size:12px;font-weight:600;border-radius:8px;padding:9px;cursor:pointer;border:1px solid #2c2e32;background:#1c1d20;color:#fff;margin-bottom:8px}
+.btn:hover{border-color:var(--c1)}
+.btn.primary{background:#fff;color:#0C0C0C;border-color:#fff}
+.sb-data input[type=text]{width:100%;font-family:var(--mono);font-size:11px;border:1px solid #2c2e32;background:#0f1012;color:#fff;border-radius:7px;padding:8px;margin-bottom:8px}
+.sb-data .status{font-size:10.5px;color:#7d828b;line-height:1.5;min-height:14px}
+.sb-foot{padding:12px 16px 16px;font-family:var(--mono);font-size:10px;color:#5c6069}
+/* main */
+.main{flex:1;min-width:0}
+.toolbar{background:#fff;border-bottom:1px solid var(--rule);position:sticky;top:0;z-index:20}
+.tb{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 26px}
+.tb .lbl{font-size:10px;letter-spacing:.10em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.tb select{font-family:var(--mono);font-size:12.5px;font-weight:600;border:1px solid var(--rule);border-radius:8px;padding:6px 9px;background:#fff}
+.tb select:focus{outline:2px solid var(--c1);outline-offset:-1px}
+.presets{display:flex;gap:6px}
+.pre{font-size:11.5px;font-weight:600;border:1px solid var(--rule);background:#fff;color:var(--muted);border-radius:100px;padding:6px 12px;cursor:pointer}
+.pre:hover{border-color:var(--c1);color:var(--c1)}
+.pre.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tb .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.tb .asof{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.5}
+.tb .asof b{color:var(--ink)}
+.gear{font-size:12.5px;font-weight:600;border:1px solid var(--rule);background:#fff;border-radius:8px;padding:7px 13px;cursor:pointer}
+.gear:hover{border-color:var(--c1)}
+.drawer{background:#fff;border-bottom:1px solid var(--rule);max-height:0;overflow:hidden;transition:max-height .3s ease}
+.drawer.open{max-height:760px}
+.drawer .in{padding:18px 26px}
+.grid-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:13px 20px}
+.fld{display:flex;flex-direction:column;gap:5px}
+.fld label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.fld input{font-family:var(--mono);font-size:13px;font-weight:600;border:1px solid var(--rule);border-radius:7px;padding:8px 10px}
+.fld input:focus{outline:2px solid var(--c1);outline-offset:-1px}
+.grp-h{grid-column:1/-1;font-size:10px;letter-spacing:.11em;text-transform:uppercase;font-weight:800;border-top:1px solid var(--rule);padding-top:11px;margin-top:2px}
+.grp-h:first-child{border-top:none;padding-top:0;margin-top:0}
+.content{padding:26px 26px 8px}
+.panel{display:none;animation:fade .2s ease}
+.panel.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+h2.sec{font-size:19px;font-weight:700;margin:0 0 3px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:12.5px;margin:0 0 18px;max-width:760px}
+.winnote{display:inline-flex;align-items:center;gap:8px;background:#EEF0FE;color:var(--c1);font-size:12px;font-weight:600;padding:7px 13px;border-radius:100px;margin-bottom:18px}
+.winnote .d{width:7px;height:7px;border-radius:50%;background:currentColor}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{position:relative;border:1px solid var(--rule);border-radius:13px;padding:17px 18px 16px;background:#fff;overflow:hidden;min-height:160px;display:flex;flex-direction:column;transition:.15s}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 22px -12px rgba(0,0,0,.18)}
+.card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.card .k{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:700;line-height:1.35;min-height:28px}
+.card .k .sq{width:9px;height:9px;border-radius:3px;background:var(--ac);flex:none}
+.card .v{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.025em;margin:2px 0 3px;font-variant-numeric:tabular-nums;line-height:1}
+.card .sub2{font-size:11.5px;color:var(--muted);margin-bottom:11px;min-height:15px;line-height:1.35}
+.card .foot{margin:0}
+.meter{display:flex;align-items:center;gap:9px}
+.meter .track{flex:1;height:8px;background:#EEF0F2;border-radius:100px;overflow:hidden}
+.meter .track > i{display:block;height:100%;border-radius:100px;transition:width .3s}
+.meter .mp{font-family:var(--mono);font-size:11.5px;font-weight:700;min-width:34px;text-align:right}
+.chip.info{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;padding:5px 11px;border-radius:100px;background:var(--faint);color:var(--muted)}
+.chip.info .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+thead th{background:var(--ink);color:#fff;font-weight:600;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:11px 14px;text-align:left}
+thead th.num{text-align:right}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tbody td.name{font-weight:600}tbody td.num{text-align:right;font-family:var(--mono);font-weight:600}
+tbody td.gap{font-family:var(--mono);color:var(--muted);text-align:right;font-size:12px}
+tbody tr:hover{background:var(--faint)}
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:12px;padding:4px 10px;border-radius:100px}
+.st .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+td.stcell{text-align:right}
+.charts{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.chartbox{border:1px solid var(--rule);border-radius:13px;padding:16px 18px 12px;background:#fff}
+.chartbox h3{font-size:12.5px;font-weight:700;margin:0 0 4px}
+.chartbox .cs{font-size:11px;color:var(--muted);margin:0 0 12px}
+.chartbox svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:14px;height:3px;display:inline-block;border-radius:2px}
+.pb td{vertical-align:top}.pb .mid{font-family:var(--mono);font-weight:700}.pb .nm{font-weight:600}
+.pb .dv{color:var(--muted);font-size:12px;max-width:330px}.pb input[type=range]{width:120px;vertical-align:middle}
+.pb .pct{font-family:var(--mono);font-weight:700;margin-left:8px}
+.bar{height:7px;background:var(--faint);border-radius:100px;overflow:hidden;margin-top:7px;max-width:150px}.bar>i{display:block;height:100%;border-radius:100px}
+.rollup{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:16px;font-weight:600}.rollup .big{font-family:var(--mono);font-size:22px;font-weight:700}
+.dl{border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:#fff}
+.dl .row{display:grid;grid-template-columns:190px 1fr;gap:20px;padding:13px 16px;border-bottom:1px solid var(--rule)}.dl .row:last-child{border-bottom:none}
+.dl .row .k{font-weight:700;font-size:13px;display:flex;gap:8px;align-items:center}.dl .row .k .sq{width:9px;height:9px;border-radius:3px;flex:none}
+.dl .row .d{font-size:12.5px;color:#333}.dl .row .d .f{color:var(--muted);font-family:var(--mono);font-size:11.5px;margin-top:5px;display:block;line-height:1.6}
+.callout{background:#EEF0FE;border:1px solid #d9ddfb;border-radius:12px;padding:15px 17px;margin-bottom:18px;font-size:12.5px;color:#2b2f6b}
+.callout b{color:var(--c1)}
+.notes{margin-top:18px;font-size:12px;color:var(--muted)}.notes .n{padding:8px 0;border-top:1px solid var(--rule);display:flex;gap:10px}.notes .n:before{content:"—";color:var(--ink)}
+footer{padding:18px 26px 30px;color:var(--muted);font-size:11.5px}.lg{display:inline-flex;gap:16px;flex-wrap:wrap;margin-bottom:8px}.lg b{color:var(--ink)}
+@media(max-width:860px){.app{flex-direction:column}.sidebar{width:100%;height:auto;position:static;flex-direction:column}.nav{flex-direction:row;overflow-x:auto;padding:8px}.nav button{border-left:none;border-bottom:3px solid transparent;white-space:nowrap}.nav button.on{border-left:none;border-bottom-color:var(--c1)}.sb-data{display:none}.cards{grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}}
+@media(max-width:560px){.cards{grid-template-columns:1fr}.dl .row{grid-template-columns:1fr}}
+.printhead{display:none}.printhead .ph{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #0C0C0C;padding-bottom:8px;margin-bottom:14px}.printhead .phL{font-weight:800;font-size:15px;letter-spacing:.02em}.printhead .phR{font-family:var(--mono);font-size:11px;color:#333;text-align:right}
+.fld select{font-family:var(--mono);font-size:13px;font-weight:600;border:1px solid var(--rule);border-radius:7px;padding:8px 10px;background:#fff}
+.spendnote{grid-column:1/-1;font-size:10.5px;color:var(--muted);margin-top:-4px;line-height:1.4}
+.card{perspective:1300px;background:transparent!important;border:none!important;padding:0!important;overflow:visible!important;min-height:240px;box-shadow:none!important}
+.card:hover{transform:none;box-shadow:none}.card:before{display:none!important}
+.card-inner{position:relative;width:100%;height:240px;transition:transform .55s cubic-bezier(.4,.2,.2,1);transform-style:preserve-3d}
+.card.flipped .card-inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--rule);border-radius:13px;background:#fff;padding:15px 17px 13px;display:flex;flex-direction:column;overflow:hidden;cursor:pointer}
+.face:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.face:hover{box-shadow:0 8px 22px -12px rgba(0,0,0,.18)}.face.back{transform:rotateY(180deg);overflow-y:auto}
+.flip-hint{position:static;text-align:right;color:var(--muted);font-size:8.5px;font-weight:700;opacity:.5;letter-spacing:.05em;text-transform:uppercase;margin-top:auto;padding-top:8px}
+.bhead{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:8px}
+.bdef{font-size:10.5px;color:var(--muted);margin:0 0 8px;line-height:1.4}
+.bcalc{font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--ink);white-space:pre-line;background:var(--faint);border:1px solid var(--rule);border-radius:8px;padding:8px 10px}
+.sparkhead{display:flex;justify-content:space-between;font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:10px 0 2px}
+.spark{width:100%;height:40px;display:block}
+.chartbox svg{cursor:crosshair}
+#chartTip{position:fixed;display:none;z-index:60;background:#0C0C0C;color:#fff;font-size:11px;padding:8px 11px;border-radius:9px;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.28);line-height:1.55}
+#chartTip b{display:block;font-family:var(--mono);margin-bottom:4px;font-size:11px}
+#chartTip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+#chartTip div{white-space:nowrap;font-family:var(--mono);font-size:10.5px}
+.krow{display:flex;justify-content:space-between;align-items:flex-start;gap:6px}
+.btoggle{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;flex:none}
+.btoggle button{font:600 9px/1 var(--mono);letter-spacing:.03em;padding:4px 7px;border:none;background:#fff;color:var(--muted);cursor:pointer;transition:.15s}
+.btoggle button.on{background:var(--ink);color:#fff}
+.fdef{font-size:10px;color:var(--muted);margin:0 0 7px;line-height:1.45}
+.fcalc{font-family:var(--mono);font-size:9.5px;line-height:1.55;white-space:pre-line;background:var(--faint);border:1px solid var(--rule);border-radius:7px;padding:7px 9px;color:var(--ink)}
+.face.front{display:flex;flex-direction:column}
+.fmain{flex:none}
+.fbody{flex:none;margin-top:11px}
+.cchart{width:100%;height:132px;margin:6px 0 2px}
+.cchart svg{cursor:crosshair}
+#arpuPanel{margin-top:18px;border:1px solid var(--rule);border-radius:12px;padding:16px 18px;background:#fff}
+.panelhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.panelhead h3{margin:0;font-size:14px;font-weight:700}
+table.arpu{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}
+table.arpu th{text-align:right;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--rule)}
+table.arpu th:first-child{text-align:left}
+table.arpu td{padding:6px 8px;border-bottom:1px solid var(--faint)}
+table.arpu td.num{text-align:right;font-family:var(--mono)}
+table.arpu td.name{font-weight:600}
+table.arpu tr.totrow td{border-top:1.5px solid var(--rule);border-bottom:none;color:var(--muted);font-size:11.5px}
+table.arpu tr.totrow td.num b{color:var(--ink)}
+.tile{display:flex;flex-direction:column;gap:7px}
+.tilehead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 3px;min-height:20px}
+.th-title{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;color:var(--ink);letter-spacing:.005em}
+.th-title .sq{width:9px;height:9px;border-radius:3px;background:var(--ac);flex:none}
+.th-basis{font-family:var(--mono);font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:#9aa0a8;font-weight:700}
+/* segment economics */
+#arpuPanel{margin-top:24px;border:none;padding:0;background:none}
+.seg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;gap:10px}
+.seg-head h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+.seg-head .cs{margin:2px 0 0;font-size:11px;color:var(--muted)}
+.segrow{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:900px){.segrow{grid-template-columns:1fr}}
+.segcard{border:1px solid var(--rule);border-radius:13px;background:#fff;padding:16px 18px 14px;position:relative;overflow:hidden}
+.segcard:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.segcard h4{margin:0 0 1px;font-size:12.5px;font-weight:700}
+.segcard .cap{font-size:10px;color:var(--muted);margin:0 0 13px;line-height:1.4}
+.seg-item{margin:9px 0}
+.seg-geo{display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:3px}
+.seg-geo .seg-share{color:var(--muted);font-family:var(--mono);font-size:9.5px;font-weight:600}
+.seg-b{display:flex;align-items:center;gap:8px;margin:2.5px 0}
+.seg-b .tag{font-family:var(--mono);font-size:8px;font-weight:700;color:var(--muted);width:9px;flex:none}
+.seg-b .tk{flex:1;height:8px;background:var(--faint);border-radius:6px;overflow:hidden}
+.seg-b .tk i{display:block;height:100%;border-radius:6px;transition:width .5s cubic-bezier(.4,.2,.2,1)}
+.seg-b .val{font-family:var(--mono);font-size:10.5px;font-weight:600;width:60px;text-align:right;flex:none}
+.seg-legend{display:flex;gap:16px;margin-top:13px;font-size:10px;color:var(--muted)}
+.seg-legend span{display:inline-flex;align-items:center;gap:5px}
+.seg-legend i{width:9px;height:9px;border-radius:2px;flex:none}
+.segfoot{margin-top:13px;padding-top:11px;border-top:1px solid var(--rule);font-size:10.5px;color:var(--muted);font-family:var(--mono);line-height:1.7}
+.segfoot b{color:var(--ink)}
+.chhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:1px}
+.chhead h3{margin:0}
+.pk-grid{display:flex;flex-direction:column;gap:16px}
+.pk-card{border:1px solid var(--rule);border-radius:13px;background:#fff;padding:16px 18px;position:relative;overflow:hidden}
+.pk-card:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.pk-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:13px}
+.pk-t{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;letter-spacing:-.01em}
+.pk-dot{width:10px;height:10px;border-radius:3px;background:var(--ac);flex:none}
+.pk-state{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ac);background:var(--faint);border:1px solid var(--rule);padding:4px 9px;border-radius:20px;white-space:nowrap}
+.pk-prog{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.pk-prog input[type=range]{flex:none;width:150px}
+.pk-bar{flex:1;height:8px;background:var(--faint);border-radius:6px;overflow:hidden}
+.pk-bar i{display:block;height:100%;border-radius:6px}
+.pk-pct{font-family:var(--mono);font-size:12px;font-weight:700;width:40px;text-align:right}
+.pk-clabel{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.pk-clabel .hint{font-weight:500;text-transform:none;letter-spacing:0;opacity:.85;color:var(--muted)}
+.cbox{border:1px solid var(--rule);border-radius:9px;padding:11px 13px;min-height:64px;font-size:12.5px;line-height:1.55;color:var(--ink);background:var(--faint);outline:none;transition:border .15s,background .15s}
+.cbox:focus{border-color:var(--ac);background:#fff}
+.cbox .ch{font-weight:700;font-size:10.5px;letter-spacing:.03em;color:var(--ac);margin:10px 0 4px;text-transform:uppercase}
+.cbox .ch:first-child{margin-top:0}
+.cbox ul{margin:2px 0 7px;padding-left:18px}
+.cbox li{margin:2.5px 0}
+.cbox p{margin:4px 0}
+#proj tr.subrow td{border-top:none;padding-top:2px;padding-bottom:2px}
+#proj td.name.sub{padding-left:20px;color:var(--muted);font-weight:500;font-size:11.5px}
+#proj tr.subrow td.num{color:var(--muted);font-family:var(--mono);font-size:11px}
+table.arpub{width:100%;border-collapse:collapse;font-size:9.5px;margin-top:2px}
+table.arpub th{font-family:var(--mono);font-size:7.5px;letter-spacing:.03em;text-transform:uppercase;color:#9aa0a8;text-align:right;padding:2px 2px 3px;border-bottom:1px solid var(--rule)}
+table.arpub th:first-child{text-align:left}
+table.arpub td{text-align:right;padding:2.5px 2px;font-family:var(--mono);font-size:9.5px;border-bottom:1px solid var(--faint)}
+table.arpub td:first-child{text-align:left;font-weight:600}
+table.arpub td b{color:var(--ac)}
+.arpubfoot{margin-top:7px;font-size:9px;color:var(--muted);font-family:var(--mono);line-height:1.4}
+.arpubfoot b{color:var(--ink);font-size:11.5px}
+.fld.chk label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink);cursor:pointer}
+.fld.chk input{width:auto;margin:0;accent-color:var(--c7)}
+@media print{@page{margin:13mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sidebar,.toolbar,.drawer,footer{display:none!important}.app{display:block}.main{width:100%}.content{padding:0}.printhead{display:block!important}.panel{display:none!important}.panel.on{display:block!important}.cards{grid-template-columns:repeat(3,1fr)}.card,.chartbox,tr{break-inside:avoid}.charts{grid-template-columns:1fr 1fr}table{font-size:11px}.card,.card-inner{min-height:0!important;height:auto!important;transform:none!important}.card-inner{position:static}.face{position:static}.face.back{display:none!important}}
+</style></head>
+<body>
+<div id="chartTip"></div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-top"><img src="data:image/png;base64,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" alt="Augnito"/><div class="cap">Investor KPI<br/>Dashboard</div></div>
+    <nav class="nav" id="nav">
+      <button class="on" data-t="overview"><span class="ic"></span>Overview</button>
+      <button data-t="proj"><span class="ic"></span>Projections</button>
+      <button data-t="trends"><span class="ic"></span>Trends</button>
+      <button data-t="pb"><span class="ic"></span>Product KPIs</button>
+      <button data-t="assume"><span class="ic"></span>Assumptions</button>
+      <button data-t="method"><span class="ic"></span>Methodology</button>
+    </nav>
+    <div class="sb-data">
+      <h4>Data source</h4>
+      <label class="btn primary" for="xlfile">⬆ Upload Excel</label>
+      <input id="xlfile" type="file" accept=".xlsx,.xls,.csv" style="display:none">
+      <input id="url" type="text" placeholder="Paste sheet link (published .xlsx/.csv URL)">
+      <button class="btn" id="loadUrl">🔗 Link to sheet</button>
+      <button class="btn" id="liveBtn" onclick="goLive(true)">☁ Connect live (SharePoint)</button>
+      <div class="status" id="dstatus">Embedded snapshot · 22-Sep-2026 data · actuals to Aug-26 · click “Connect live” for SharePoint</div>
+    </div>
+    <div class="sb-foot">Augnito · v3</div>
+  </aside>
+
+  <div class="main"><div class="printhead" id="printhead"></div>
+    <div class="toolbar"><div class="tb">
+      <span class="lbl">Window</span>
+      <select id="from"></select><span style="color:var(--muted)">→</span><select id="to"></select>
+      <div class="presets"><button class="pre" data-p="3">3M</button><button class="pre" data-p="6">6M</button><button class="pre on" data-p="ytd">YTD ’26</button><button class="pre" data-p="max">Max</button></div>
+      <div class="right"><div class="asof"><b id="asofTxt">As of Jul-2026</b><br/>Assessment Jan-26 → Jan-27</div><button class="gear" id="expData2">⬇ Excel</button><button class="gear" id="pdf">⭳ PDF</button><button class="gear" id="refreshBtn2">↻ Refresh</button></div>
+    </div>
+    </div>
+
+    <div class="content">
+      <div class="panel on" id="p-overview"><div class="winnote" id="winnote"><span class="d"></span></div><div class="cards" id="cards"></div><div id="arpuPanel"></div></div>
+      <div class="panel" id="p-proj">
+        <h2 class="sec">Will we hit our goals?</h2>
+        <p class="sub">Projection to Jan-2027. Exit ARR uses your projected ARR net-new additions; cash runway is the forward simulation described in Methodology.</p>
+        <table><thead><tr><th>KPI</th><th class="num">Current</th><th class="num">Goal</th><th class="num">Projected · Jan-27</th><th class="num">To go</th><th class="num">Status</th></tr></thead><tbody id="proj"></tbody></table>
+        <div class="chartbox" style="margin-top:18px"><h3>Exit ARR trajectory vs goal</h3><p class="cs">Contracted ARR plus projected net-new additions, Jul-26 → Mar-27. Hover for monthly values.</p><div id="chArr"></div>
+          <div class="legend"><span><i style="background:var(--c1)"></i>Projected ARR</span><span><i style="background:var(--g-tx)"></i>Goal $5.0M</span></div></div>
+        <div class="charts" style="margin-top:18px">
+          <div class="chartbox"><h3>New users added — projected</h3><p class="cs">Cumulative new users added (Jan-26 base), actual then projected to Mar-27, vs goal. HMG not netted in this view.</p><div id="chUsersProj"></div><div class="legend"><span><i style="background:var(--c5)"></i>New users (cum.)</span><span><i style="background:#15803D"></i>Goal</span></div></div>
+          <div class="chartbox"><h3>Cash balance — projected</h3><p class="cs">Forward cash balance under Best / Optimistic / Pessimistic inflow scenarios, to Mar-27.</p><div id="chCashProj"></div><div class="legend"><span><i style="background:var(--c9)"></i>Best</span><span><i style="background:var(--c4)"></i>Optimistic</span><span><i style="background:var(--c6)"></i>Pessimistic</span></div></div>
+        </div>
+        <div class="charts" style="margin-top:18px">
+          <div class="chartbox">
+            <div class="chhead"><h3>Cash inflow — projected</h3><span class="btoggle"><button id="ifm_mom" onclick="setInflow('mom')">Monthly</button><button id="ifm_avg" onclick="setInflow('avg')">Average</button></span></div>
+            <p class="cs">Projected monthly collections (Cash Projections), Aug-26 → Mar-27. Dashed = average/mo.</p>
+            <div id="chInflowProj"></div>
+            <div class="legend"><span><i style="background:var(--c4)"></i>Projected inflow</span></div>
+          </div>
+          <div class="chartbox">
+            <div class="chhead"><h3>Expenses — projected</h3><span class="btoggle"><button id="exm_split" onclick="setExp('split')">Split</button><button id="exm_cumulative" onclick="setExp('cumulative')">Cumulative</button><button id="exm_avg" onclick="setExp('avg')">Avg/mo</button></span></div>
+            <p class="cs">Forward spend held at the runway monthly-spend basis, split by trailing-3-mo mix (source has no forward expense line).</p>
+            <div id="chExpProj"></div>
+            <div class="legend"><span><i style="background:var(--c8)"></i>AIPL S&amp;M</span><span><i style="background:var(--c6)"></i>AAMEL S&amp;M</span><span><i style="background:var(--c2)"></i>COGS</span><span><i style="background:var(--c9)"></i>Other opex</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" id="p-trends">
+        <h2 class="sec">Trends</h2><p class="sub">Actual history Apr-25 → Jul-26. Shaded band = selected window.</p>
+        <div class="charts">
+          <div class="chartbox"><h3>Revenue mix · MRR</h3><p class="cs">Enterprise + Partners vs Retail, INR mn.</p><div id="chMix"></div><div class="legend"><span><i style="background:var(--c3)"></i>Ent + Partners</span><span><i style="background:var(--c2)"></i>Retail</span></div></div>
+          <div class="chartbox"><h3>Monthly net burn</h3><p class="cs">Actual, INR mn.</p><div id="chBurn"></div><div class="legend"><span><i style="background:var(--c4)"></i>Net burn</span></div></div>
+        </div>
+      </div>
+      <div class="panel" id="p-pb">
+        <h2 class="sec">Product KPIs</h2><p class="sub">Status of key product initiatives. Drag a slider to update progress; type or paste into Comments — pasted text auto-formats into headings and bullets.</p>
+        <div class="pk-grid" id="pbBody"></div>
+        <div class="rollup">Overall product progress <span class="big" id="pbRoll">—</span></div>
+      </div>
+      <div class="panel" id="p-assume">
+        <h2 class="sec">Assumptions &amp; goals</h2>
+        <p class="sub">Edit any value — the whole dashboard recalculates live. The reporting window and date range are set in the bar up top.</p>
+        <div class="grid-in" id="inputs">
+      <div class="grp-h">Settings</div>
+      <div class="fld"><label>FX (INR per USD)</label><input id="fx" type="number" step="1" value="95"></div>
+      <div class="fld"><label>HMG users to exclude</label><input id="hmg" type="number" step="1" value="1060"></div><div class="fld"><label>Delayed renewals, cumulative Jan→current (INR MRR)</label><input id="delayedRenew" type="number" step="100000" value="400000"></div><div class="fld chk"><label><input id="ltvDelayed" type="checkbox"> Apply delayed renewals to LTV churn</label></div>
+      <div class="fld"><label>Cash in bank (INR)</label><input id="cash" type="number" step="1000000" value="100397136"></div>
+      <div class="grp-h">Cash runway · inflow scenarios (% of projected cash)</div>
+      <div class="fld"><label>Best case (%)</label><input id="sBest" type="number" step="5" value="100"></div>
+      <div class="fld"><label>Optimistic (%)</label><input id="sOpt" type="number" step="5" value="70"></div>
+      <div class="fld"><label>Pessimistic (%)</label><input id="sPess" type="number" step="5" value="50"></div>
+      <div class="fld"><label>Spend basis</label><select id="spendBasis"><option value="t3" selected>Trailing 3-mo avg</option><option value="latest">Latest month</option><option value="t6">Trailing 6-mo avg</option></select></div><div class="fld"><label>Monthly spend (INR, editable)</label><input id="outflow" type="number" step="1000000" value="38636433"></div><div class="spendnote" id="spendNote"></div>
+      <div class="fld"><label>Scribetech UK inflow / mo (INR)</label><input id="scribeAmt" type="number" step="100000" value="2000000"></div>
+      <div class="fld"><label>Scribetech months</label><input id="scribeMonths" type="number" step="1" value="6"></div>
+      <div class="grp-h">Goals</div>
+      <div class="fld"><label>Exit ARR (USD)</label><input id="gExit" type="number" step="100000" value="5000000"></div>
+      <div class="fld"><label>Accrued rev (%)</label><input id="gAcc" type="number" step="1" value="65"></div>
+      <div class="fld"><label>NRR (%)</label><input id="gNrr" type="number" step="1" value="105"></div>
+      <div class="fld"><label>Cash runway (mo)</label><input id="gRun" type="number" step="1" value="9"></div>
+      <div class="fld"><label>New users added (goal)</label><input id="gCust" type="number" step="500" value="2500"></div>
+      <div class="fld"><label>LTV:CAC (x)</label><input id="gLc" type="number" step="0.1" value="3"></div>
+      <div class="fld"><label>Burn multiple (x, ≤)</label><input id="gBurn" type="number" step="0.1" value="2"></div><div class="fld"><label>Avg cash inflow /mo (goal, ₹)</label><input id="gInflow" type="number" step="1000000" value="25000000"></div><div class="fld"><label>Avg monthly expense (ceiling, ₹)</label><input id="gExp" type="number" step="1000000" value="34700000"></div>
+        </div>
+      </div>
+      <div class="panel" id="p-method">
+        <h2 class="sec">Methodology</h2><p class="sub">How each Part A KPI is calculated on this dashboard.</p>
+        <div class="callout" id="cashHow"></div>
+        <div class="dl" id="dict"></div><div class="notes" id="notes"></div>
+      </div>
+    </div>
+    <footer><div class="lg"><b>Status colour</b><span style="color:var(--g-tx)">● ≥ 85% of goal</span><span style="color:var(--a-tx)">● 50–85%</span><span style="color:var(--r-tx)">● &lt; 50%</span></div><br/>Figures derived from the “Summary source for DB” export · INR→USD at the editable FX rate.</footer>
+  </div>
+</div>
+
+<script>
+let DATA = [{"m":"2025-04-01","inflow":14635770,"outflow":39522238,"netBurn":-24886468,"mrrOrg":15405098.9066017,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":2678074.7692423295,"mrrEP":12727024.13735937,"expansion":227311.5725,"arrINR":184861186.8792204,"deltaARR":2165842.8792203963,"users":6780,"newUsers":41,"churnEP":206012.47833333336,"contraction":5472.75,"arpu":2310,"marketing":452817,"sales":6192654.78,"aamelMkt":0,"aamelSales":0,"gm":0.6435246515913859,"cogs":5491538,"churnRateARR":0.019857706171209268,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8015400.058676063,"GCC":2422858.226025637,"UK":3501008.341066663,"USA":372654.1666666667,"Others":83183.4225},"Omni":{"India":45000,"GCC":954232.6666666667,"UK":10762.025,"USA":0,"Others":0}},"users":{"Spectra":{"India":4343,"GCC":1022,"UK":1148,"USA":39,"Others":44},"Omni":{"India":11,"GCC":171,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-05-01","inflow":12796632,"outflow":30232797,"netBurn":-17436165,"mrrOrg":15370676.5932392,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":2822017.48499092,"mrrEP":12548659.108248278,"expansion":128419.55277777778,"arrINR":184448119.11887038,"deltaARR":-413067.76035001874,"users":6753,"newUsers":190,"churnEP":30608.333333333285,"contraction":6444.333333333333,"arpu":2315,"marketing":1475662.4300000002,"sales":10520228.530000003,"aamelMkt":0,"aamelSales":0,"gm":0.6445060341453399,"cogs":5464182.779999999,"churnRateARR":0.008244757996763039,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8219962.551980189,"GCC":2158877.11935897,"UK":3502702.7577333366,"USA":385142.1666666667,"Others":93997.30583333335},"Omni":{"India":45000,"GCC":954232.6666666667,"UK":10762.025,"USA":0,"Others":0}},"users":{"Spectra":{"India":4459,"GCC":874,"UK":1149,"USA":41,"Others":46},"Omni":{"India":11,"GCC":171,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-06-01","inflow":13276491,"outflow":32720898,"netBurn":-19444407,"mrrOrg":15560191.1501496,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":2819698.52964861,"mrrEP":12740492.620500991,"expansion":173629.75538461536,"arrINR":186722293.8017952,"deltaARR":2274174.682924837,"users":6815,"newUsers":31,"churnEP":32889.50000000003,"contraction":26905.84740112994,"arpu":2324,"marketing":1481557.1099999999,"sales":8497746.020000001,"aamelMkt":0,"aamelSales":0,"gm":0.6397830312035653,"cogs":5605044.89,"churnRateARR":0.008455070748981774,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8132880.443304556,"GCC":2242057.52935897,"UK":3643762.660755313,"USA":371962.4166666667,"Others":103550.63916666666},"Omni":{"India":45000,"GCC":1006858.43589744,"UK":14119.025000000001,"USA":0,"Others":0}},"users":{"Spectra":{"India":4466,"GCC":882,"UK":1190,"USA":38,"Others":45},"Omni":{"India":11,"GCC":180,"UK":3,"USA":0,"Others":0}}}},{"m":"2025-07-01","inflow":15861716,"outflow":40763779,"netBurn":-24902063,"mrrOrg":16029373.3479928,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":2960204.2117578406,"mrrEP":13069169.13623496,"expansion":82318.83585858585,"arrINR":192352480.1759136,"deltaARR":5630186.374118388,"users":6975,"newUsers":110,"churnEP":40184.50192307688,"contraction":18832.24406779661,"arpu":2341,"marketing":1089743.1199999999,"sales":13746741.280000005,"aamelMkt":0,"aamelSales":0,"gm":0.7142904092022115,"cogs":4579745.7,"churnRateARR":0.009920280462295358,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8285268.413370011,"GCC":2289171.1571367476,"UK":3639214.17408865,"USA":391153.0833333334,"Others":99820.88916666666},"Omni":{"India":45000,"GCC":1263677.68589744,"UK":16067.945,"USA":0,"Others":0}},"users":{"Spectra":{"India":4575,"GCC":897,"UK":1190,"USA":42,"Others":45},"Omni":{"India":11,"GCC":212,"UK":3,"USA":0,"Others":0}}}},{"m":"2025-08-01","inflow":13927010,"outflow":28376389,"netBurn":-14449379,"mrrOrg":16236207.2885672,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":3007975.2345544444,"mrrEP":13228232.054012757,"expansion":250678.55333333332,"arrINR":194834487.4628064,"deltaARR":2482007.2868928015,"users":7069,"newUsers":86,"churnEP":100741.56722222222,"contraction":2215.966666666667,"arpu":2335,"marketing":1026347.87,"sales":4907180.019999999,"aamelMkt":0,"aamelSales":0,"gm":0.7353350056681117,"cogs":4297155.71,"churnRateARR":0.014317347273066135,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8397762.6589444,"GCC":2304069.857136751,"UK":3614985.9290886433,"USA":314392.4166666666,"Others":162102.08916666667},"Omni":{"India":144000,"GCC":1288044.3525641,"UK":10849.985,"USA":0,"Others":0}},"users":{"Spectra":{"India":4650,"GCC":916,"UK":1160,"USA":23,"Others":59},"Omni":{"India":44,"GCC":215,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-09-01","inflow":11732511,"outflow":41644438,"netBurn":-29911927,"mrrOrg":16249026.3653563,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":3019195.4016213124,"mrrEP":13229830.963734988,"expansion":102155.41666666666,"arrINR":194988316.38427562,"deltaARR":153828.92146921158,"users":7032,"newUsers":61,"churnEP":231722.90777777773,"contraction":11327.5,"arpu":2352,"marketing":1907448.09,"sales":3817776.2599999993,"aamelMkt":0,"aamelSales":0,"gm":0.7517163183019098,"cogs":4034368.09,"churnRateARR":0.02426089243689818,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8425878.901289044,"GCC":2240345.983247862,"UK":3721478.5374219837,"USA":308270.75,"Others":152864.85583333333},"Omni":{"India":145967,"GCC":1243370.3525641,"UK":10849.985,"USA":0,"Others":0}},"users":{"Spectra":{"India":4636,"GCC":864,"UK":1200,"USA":23,"Others":57},"Omni":{"India":45,"GCC":205,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-10-01","inflow":14185276,"outflow":36388631,"netBurn":-22203355,"mrrOrg":16823833.125476,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":3140615.0180101977,"mrrEP":13683218.107465802,"expansion":111403.77478632481,"arrINR":201885997.50571197,"deltaARR":6897681.1214363575,"users":7138,"newUsers":104,"churnEP":49632.67555555566,"contraction":15242.41666666667,"arpu":2399,"marketing":526107.97,"sales":7296555.959999997,"aamelMkt":0,"aamelSales":0,"gm":0.7786134228614074,"cogs":3724570.83,"churnRateARR":0.010295937284314976,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8582887.666630916,"GCC":2502699.168803418,"UK":3888397.02081087,"USA":294219.3333333333,"Others":150952.75833333333},"Omni":{"India":145967,"GCC":1248403.1525641,"UK":10307.025,"USA":0,"Others":0}},"users":{"Spectra":{"India":4716,"GCC":904,"UK":1191,"USA":19,"Others":55},"Omni":{"India":45,"GCC":206,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-11-01","inflow":10996463,"outflow":38471553,"netBurn":-27475090,"mrrOrg":16648983.5588669,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":3126544.952512241,"mrrEP":13522438.606354658,"expansion":128303.86111111111,"arrINR":199787802.70640278,"deltaARR":-2098194.799309194,"users":7163,"newUsers":154,"churnEP":28578.494444444426,"contraction":12370.5625,"arpu":2362,"marketing":968456.9900000001,"sales":3744296.45,"aamelMkt":0,"aamelSales":0,"gm":0.7205396615625791,"cogs":4652730.58,"churnRateARR":0.010300177983407845,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8401626.023355177,"GCC":2391088.7088034144,"UK":3892945.0741442037,"USA":484785.8666666667,"Others":146539.25833333333},"Omni":{"India":145967,"GCC":1175724.6025641,"UK":10307.025,"USA":0,"Others":0}},"users":{"Spectra":{"India":4667,"GCC":903,"UK":1192,"USA":102,"Others":54},"Omni":{"India":45,"GCC":198,"UK":2,"USA":0,"Others":0}}}},{"m":"2025-12-01","inflow":31622774,"outflow":37224395,"netBurn":-5601621,"mrrOrg":16993145.1146302,"accruedAIPL":12824367,"accruedAAMEL":1612064.25,"mrrRetail":3136184.3485259414,"mrrEP":13856960.766104259,"expansion":123637.98863636363,"arrINR":203917741.3755624,"deltaARR":4129938.669159621,"users":9314,"newUsers":91,"churnEP":-451304.1613888889,"contraction":4942.85,"arpu":1843,"marketing":1202997.32,"sales":3913416.99,"aamelMkt":80000,"aamelSales":2331025,"gm":0.7484096404073438,"cogs":4275311.49,"churnRateARR":-0.01929413124549635,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8602617.989295276,"GCC":2687793.134120995,"UK":4026950.4349775333,"USA":486847.5870056497,"Others":149122.425},"Omni":{"India":172967,"GCC":856539.5192307692,"UK":10307.025,"USA":0,"Others":0}},"users":{"Spectra":{"India":4754,"GCC":999,"UK":3190,"USA":103,"Others":54},"Omni":{"India":54,"GCC":158,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-01-01","inflow":11477148,"outflow":35629628,"netBurn":-24152480,"mrrOrg":16254437.7860765,"accruedAIPL":20112056,"accruedAAMEL":1111535.75,"mrrRetail":3100813.587086184,"mrrEP":13153624.198990315,"expansion":60836.12666666667,"arrINR":195053253.43291798,"deltaARR":-8864487.942644417,"users":9120,"newUsers":162,"churnEP":95129.45972222224,"contraction":0.0033333333333303,"arpu":1800,"marketing":1443316.58,"sales":3895116.2,"aamelMkt":80000,"aamelSales":2331025,"gm":0.7228759930498159,"cogs":4504494.93,"churnRateARR":0.012275098805955542,"cashInBank":0,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8579804.991173321,"GCC":2465047.7697424637,"UK":3602486.0817632503,"USA":464426.6166666667,"Others":143491.8825},"Omni":{"India":132967,"GCC":855275.0192307692,"UK":10938.425,"USA":0,"Others":0}},"users":{"Spectra":{"India":4722,"GCC":878,"UK":2956,"USA":99,"Others":51},"Omni":{"India":44,"GCC":158,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-02-01","inflow":10016212,"outflow":73854041,"netBurn":-63837829,"mrrOrg":16362492.3534891,"accruedAIPL":13455854,"accruedAAMEL":1421221,"mrrRetail":3056443.0007679802,"mrrEP":13306049.35272112,"expansion":36622.543333333335,"arrINR":196349908.24186918,"deltaARR":1296654.808951199,"users":9133,"newUsers":141,"churnEP":84964.75180555554,"contraction":0,"arpu":1810,"marketing":880218.78,"sales":10888113.650000002,"aamelMkt":80000,"aamelSales":2331025,"gm":0.6838964719884447,"cogs":5172241.5600000005,"churnRateARR":0.013231943872980781,"cashInBank":355997136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8563954.407676844,"GCC":2621782.3722424638,"UK":3605398.0225965767,"USA":457147.4166666666,"Others":106171.29916666666},"Omni":{"India":132967,"GCC":864133.4101398601,"UK":10938.425,"USA":0,"Others":0}},"users":{"Spectra":{"India":4739,"GCC":887,"UK":2954,"USA":97,"Others":41},"Omni":{"India":44,"GCC":159,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-03-01","inflow":12594715,"outflow":52668057,"netBurn":-40073342,"mrrOrg":17084804.4188181,"accruedAIPL":6860156,"accruedAAMEL":1274366,"mrrRetail":3184042.727188899,"mrrEP":13900761.691629201,"expansion":306858.5694444445,"arrINR":205017653.02581722,"deltaARR":8667744.783948034,"users":9915,"newUsers":122,"churnEP":172215.5111111111,"contraction":7800,"arpu":1741,"marketing":1287830.03,"sales":3888061.4299999997,"aamelMkt":80000,"aamelSales":1755025,"gm":0.7348134114424106,"cogs":4530661,"churnRateARR":0.01698772585737359,"cashInBank":204497136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8898571.928233277,"GCC":2673816.2476944476,"UK":3938374.72184658,"USA":462090.55,"Others":109394.8609039548},"Omni":{"India":127967,"GCC":864133.4101398601,"UK":10455.7,"USA":0,"Others":0}},"users":{"Spectra":{"India":4847,"GCC":917,"UK":3598,"USA":97,"Others":42},"Omni":{"India":43,"GCC":159,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-04-01","inflow":16524051.879999999,"outflow":60975595.86,"netBurn":-44451543.980000004,"mrrOrg":17285649.8937441,"accruedAIPL":16306131,"accruedAAMEL":1305312.5,"mrrRetail":3203614.035840899,"mrrEP":14082035.857903201,"expansion":202194.65583333332,"arrINR":207427798.7249292,"deltaARR":2410145.699111998,"users":9961,"newUsers":241,"churnEP":77146.55919405322,"contraction":43457.26642456522,"arpu":1758,"marketing":1147606.92,"sales":4350003.57,"aamelMkt":80000,"aamelSales":1817367,"gm":0.7447949520488358,"cogs":4411385.109999999,"churnRateARR":0.010018094604776949,"cashInBank":174597136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":8897157.094639216,"GCC":2850671.0723117744,"UK":3906879.84238192,"USA":450238.25,"Others":129661.01627128813},"Omni":{"India":151967,"GCC":888889.6601398601,"UK":10185.958,"USA":0,"Others":0}},"users":{"Spectra":{"India":5047,"GCC":963,"UK":3594,"USA":93,"Others":47},"Omni":{"India":51,"GCC":164,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-05-01","inflow":13733167.059999999,"outflow":38108404.480000004,"netBurn":-24375237.420000006,"mrrOrg":17222299.9254755,"accruedAIPL":14782941,"accruedAAMEL":1897915.0000000002,"mrrRetail":3195864.7741220854,"mrrEP":14026435.151353415,"expansion":184330.9589047618,"arrINR":206667599.105706,"deltaARR":-760199.6192232072,"users":9961,"newUsers":85,"churnEP":327792.7822222222,"contraction":0,"arpu":1776,"marketing":1342820.76,"sales":4971763.88,"aamelMkt":80000,"aamelSales":1817367,"gm":0.6894104316411552,"cogs":5349066.699999999,"churnRateARR":0.027356954981839723,"cashInBank":174597136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":9004943.178527191,"GCC":2630791.4268047744,"UK":3982407.2235860103,"USA":436262.8333333334,"Others":116852.64508428815},"Omni":{"India":151967,"GCC":888889.6601398601,"UK":10185.958,"USA":0,"Others":0}},"users":{"Spectra":{"India":5104,"GCC":881,"UK":3625,"USA":90,"Others":44},"Omni":{"India":51,"GCC":164,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-06-01","inflow":15459268,"outflow":42485412,"netBurn":-27026144,"mrrOrg":22465700.0940538,"accruedAIPL":12912372,"accruedAAMEL":1897703.25,"mrrRetail":3111352.2012834116,"mrrEP":19354347.89277039,"expansion":615227.8573232322,"arrINR":269588401.1286456,"deltaARR":62920802.02293959,"users":11818,"newUsers":1188,"churnEP":90334.34863636369,"contraction":0,"arpu":1660,"marketing":1985641.52,"sales":3392886.8399999994,"aamelMkt":80000,"aamelSales":1817367,"gm":0.7475058014550198,"cogs":5672458.9399999995,"churnRateARR":0.011595704706642248,"cashInBank":144597136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":9068838.584856499,"GCC":2903229.343471444,"UK":3911754.47258601,"USA":435679.1666666667,"Others":132322.575},"Omni":{"India":155133.6666666667,"GCC":5848556.32680653,"UK":10185.958,"USA":0,"Others":0}},"users":{"Spectra":{"India":5290,"GCC":1128,"UK":3590,"USA":89,"Others":48},"Omni":{"India":52,"GCC":1619,"UK":2,"USA":0,"Others":0}}}},{"m":"2026-07-01","inflow":17889241,"outflow":35315483,"netBurn":-17426242,"mrrOrg":22208845.8934613,"accruedAIPL":16211378.32,"accruedAAMEL":4126239,"mrrRetail":3091904.6390862046,"mrrEP":19116941.254375093,"expansion":153918.43333333335,"arrINR":266506150.72153556,"deltaARR":-3082250.4071100354,"users":11738,"newUsers":87,"churnEP":423086.8207585832,"contraction":0,"arpu":1828,"marketing":827465.8099999998,"sales":5092636.420000001,"aamelMkt":80000,"aamelSales":1817367,"gm":0.7145710123610549,"cogs":6339048.400000002,"churnRateARR":0.025893581266733717,"cashInBank":120397136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":9092116.563219637,"GCC":3027419.634361111,"UK":3826668.5133047635,"USA":436522.0833333334,"Others":126724.82500000001},"Omni":{"India":155133.6666666667,"GCC":5539111.30757576,"UK":5149.3,"USA":0,"Others":0}},"users":{"Spectra":{"India":5245,"GCC":1164,"UK":3561,"USA":90,"Others":47},"Omni":{"India":52,"GCC":1578,"UK":1,"USA":0,"Others":0}}}},{"m":"2026-08-01","inflow":16770184,"outflow":42527670,"netBurn":-25757486,"mrrOrg":22315735.3187903,"accruedAIPL":5096800.42,"accruedAAMEL":2098695.25,"mrrRetail":3040454.354772418,"mrrEP":19275280.964017883,"expansion":235936.6194444445,"arrINR":267788823.82548362,"deltaARR":1282673.1039480567,"users":11794,"newUsers":71,"churnEP":60796.535,"contraction":0.0033333333333303,"arpu":1789,"marketing":1325883.7524999997,"sales":4451822.6775,"aamelMkt":80000,"aamelSales":1817367,"gm":0.7308735928166779,"cogs":6005753.670000001,"churnRateARR":0.010029325845108275,"cashInBank":100397136,"cashProj":0,"arrNewProj":0,"projectedNewUsers":0,"seg":{"mrr":{"Spectra":{"India":9116260.239340382,"GCC":3052691.262527781,"UK":3856144.044346427,"USA":437626.23333333334,"Others":120230.47333333333},"Omni":{"India":197376.625,"GCC":5530257.1409091,"UK":5149.3,"USA":0,"Others":0}},"users":{"Spectra":{"India":5274,"GCC":1165,"UK":3571,"USA":91,"Others":46},"Omni":{"India":69,"GCC":1577,"UK":1,"USA":0,"Others":0}}}},{"m":"2026-09-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":21657778.1237449,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":2718421.854274558,"mrrEP":18939356.26947034,"expansion":147951.86533333332,"arrINR":259893337.4849388,"deltaARR":-7895486.34054482,"users":11471,"newUsers":108,"churnEP":157864.2000000002,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":1,"cogs":0,"churnRateARR":0.01642084048273567,"cashInBank":0,"cashProj":33641595.09,"arrNewProj":411395.0974814815,"projectedNewUsers":1562.6,"seg":{"mrr":{"Spectra":{"India":8499923.996628232,"GCC":2885308.4410277777,"UK":3731800.0051797596,"USA":436522.0833333334,"Others":90660.03166666665},"Omni":{"India":197376.625,"GCC":5811037.64090909,"UK":5149.3,"USA":0,"Others":0}},"users":{"Spectra":{"India":5025,"GCC":1112,"UK":3519,"USA":90,"Others":35},"Omni":{"India":69,"GCC":1620,"UK":1,"USA":0,"Others":0}}}},{"m":"2026-10-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":-259893337.4849388,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":40037755.629942,"arrNewProj":135537.4773333333,"projectedNewUsers":612.4,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}},{"m":"2026-11-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":0,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":48164224.0719075,"arrNewProj":653983.4093333333,"projectedNewUsers":1371,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}},{"m":"2026-12-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":0,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":40174547.91948,"arrNewProj":166229.5288888889,"projectedNewUsers":415.2,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}},{"m":"2027-01-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":0,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":23971787.1362774,"arrNewProj":65011.36,"projectedNewUsers":106,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}},{"m":"2027-02-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":0,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":24922498.4082975,"arrNewProj":83251.36,"projectedNewUsers":282,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}},{"m":"2027-03-01","inflow":0,"outflow":0,"netBurn":0,"mrrOrg":0,"accruedAIPL":0,"accruedAAMEL":0,"mrrRetail":0,"mrrEP":0,"expansion":0,"arrINR":0,"deltaARR":0,"users":0,"newUsers":0,"churnEP":0,"contraction":0,"arpu":0,"marketing":0,"sales":0,"aamelMkt":0,"aamelSales":0,"gm":0,"cogs":0,"churnRateARR":0,"cashInBank":0,"cashProj":18274730.057589,"arrNewProj":314158.04,"projectedNewUsers":604,"seg":{"mrr":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}},"users":{"Spectra":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0},"Omni":{"India":0,"GCC":0,"UK":0,"USA":0,"Others":0}}}}];
+const $=id=>document.getElementById(id);
+let EXITARR=3311929; let ACTUAL=[], range={from:0,to:0};const CHARTS={};
+const AC=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)','var(--c9)'];
+const M3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const mlabel=m=>M3[+m.slice(5,7)-1]+'-'+m.slice(2,4);
+const AEND='2027-01-01';
+const byMonth=m=>DATA.find(d=>d.m===m)||{};
+function currentMonthISO(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-01';}
+function setActuals(){
+  // Actuals = complete months strictly BEFORE the current calendar month.
+  // Purely date-driven (uses today's real month), independent of which cells are blank.
+  const cur=currentMonthISO();
+  let idx=-1; for(let i=0;i<DATA.length;i++){ if(DATA[i].m<cur) idx=i; }
+  if(idx<0) idx=0;
+  ACTUAL=DATA.slice(0,idx+1);
+}
+function fillSelects(){const f=$('from'),t=$('to');
+  f.innerHTML=ACTUAL.slice(1).map((d,i)=>`<option value="${i+1}">${mlabel(d.m)}</option>`).join('');
+  t.innerHTML=ACTUAL.map((d,i)=>`<option value="${i}">${mlabel(d.m)}</option>`).join('');
+  f.value=range.from;t.value=range.to;}
+const sum=(a,f)=>a.reduce((s,d)=>s+(d[f]||0),0), avg=(a,f)=>a.length?sum(a,f)/a.length:0;
+function cfg(){return{fx:+$('fx').value||95,hmg:+$('hmg').value||0,delayedRenew:+$('delayedRenew').value||0,ltvDelayed:($('ltvDelayed')?$('ltvDelayed').checked:false),cash:+$('cash').value||0,
+ sBest:(+$('sBest').value||0)/100,sOpt:(+$('sOpt').value||0)/100,sPess:(+$('sPess').value||0)/100,
+ outflow:+$('outflow').value||1,scribeAmt:+$('scribeAmt').value||0,scribeMonths:+$('scribeMonths').value||0,
+ gExit:+$('gExit').value||1,gAcc:(+$('gAcc').value||0)/100,gNrr:(+$('gNrr').value||0)/100,
+ gRun:+$('gRun').value||1,gCust:+$('gCust').value||1,gLc:+$('gLc').value||1,gBurn:+$('gBurn').value||1,gInflow:+$('gInflow').value||0,gExp:+$('gExp').value||0};}
+
+// forward inflow projections (months after last actual)
+function projRows(){const lastM=ACTUAL[ACTUAL.length-1].m; return DATA.filter(d=>d.m>lastM);}
+// cash runway simulation: returns {months, path:[balances]}
+function simulate(c,s){
+  const proj=projRows(), avgIn=proj.length?avg(proj,'cashProj'):0;
+  let bal=c.cash,m=0,path=[bal];
+  while(m<120){
+    const inP=(m<proj.length?proj[m].cashProj:avgIn);
+    const scr=(m<c.scribeMonths?c.scribeAmt:0);
+    const net=inP*s+scr-c.outflow;
+    if(bal+net<=0){return {months:m+bal/(-net), path};}
+    bal+=net;m++;path.push(bal);
+  }
+  return {months:m,path};
+}
+// ---- segment ARPU helpers (geo x product) ----
+const GEOS=['India','GCC','UK','USA','Others'], PRODS=['Spectra','Omni'];
+function segARPU(month){ // MRR-share weighted org ARPU for a single month (Task 1), geo level
+  const d=byMonth(month); if(!d||!d.seg)return {w:0,rows:[],tot:0};
+  let tot=0; const rows=GEOS.map(g=>{const mrr=(d.seg.mrr.Spectra[g]||0)+(d.seg.mrr.Omni[g]||0);const u=(d.seg.users.Spectra[g]||0)+(d.seg.users.Omni[g]||0);tot+=mrr;return {g,mrr,u,arpu:u>0?mrr/u:0};});
+  const w=tot>0?rows.reduce((s,r)=>s+(r.mrr/tot)*r.arpu,0):0; return {w,rows,tot};
+}
+function segTable(win){ // ARPU by geo x product aggregated over a window
+  const agg={}; let totMRR=0,totU=0;
+  GEOS.forEach(g=>{agg[g]={};PRODS.forEach(p=>{const mrr=win.reduce((s,d)=>s+((d.seg&&d.seg.mrr[p][g])||0),0),u=win.reduce((s,d)=>s+((d.seg&&d.seg.users[p][g])||0),0);agg[g][p]={mrr,u,arpu:u>0?mrr/u:0};});
+    const gm=agg[g].Spectra.mrr+agg[g].Omni.mrr,gu=agg[g].Spectra.u+agg[g].Omni.u;agg[g].blend={mrr:gm,u:gu,arpu:gu>0?gm/gu:0};totMRR+=gm;totU+=gu;});
+  return {agg,totMRR,totU};
+}
+function kset(win,c,wARPU,exit,dpm){ // all window metrics on a given window; dpm = delayed-renewals per month
+  const S=f=>win.reduce((s,d)=>s+(d[f]||0),0), n=win.length, first=win[0], last=win[win.length-1];
+  const mi=m=>DATA.findIndex(x=>x.m===m);
+  const openEP=(DATA[mi(first.m)-1]||{}).mrrEP||0;
+  const accrSum=S('accruedAIPL')+S('accruedAAMEL'), accrAnn=accrSum*12/n, accrued=accrAnn/(exit*c.fx);
+  const dApplied=(dpm||0)*n;   // delayed renewals scaled to this basis window
+  const exp=S('expansion'),chn=S('churnEP'),con=S('contraction'), nrr=openEP>0?(openEP+exp-(chn-dApplied)-con)/openEP:0;
+  const cogsW=S('cogs'), gm=accrSum>0?(accrSum-cogsW)/accrSum:0;
+  const priorSum=win.reduce((s,d)=>{const p=DATA[mi(d.m)-1];return s+((p&&p.mrrEP)||0);},0);
+  const epChurnGross=priorSum>0?chn/priorSum:0;                 // Σ Churn MRR E/P ÷ Σ prior-month MRR E/P (period churn)
+  const netFrac=chn>0?Math.max(0.05,(chn-dApplied)/chn):1;      // delayed-renewals add-back fraction (only applied if toggled on)
+  const epChurn=c.ltvDelayed?epChurnGross*netFrac:epChurnGross, life=epChurn>0?1/epChurn:0;
+  const ltv=(wARPU>0&&epChurn>0)?(wARPU*gm)/epChurn/c.fx:0;
+  const smAIPL=S('marketing')+S('sales'), smAAMEL=S('aamelMkt')+S('aamelSales'), sm=smAIPL+smAAMEL, nu=S('newUsers');
+  const cac=nu>0?(sm/nu)/c.fx:0, lc=cac>0?ltv/cac:0;
+  const burned=-S('netBurn'), newARR=S('deltaARR'), burn=newARR!==0?burned/newARR:0;
+  const newAdds=nu-c.hmg;
+  return {n,openEP,accrSum,accrAnn,accrued,nrr,exp,chn,con,dr:dApplied,gm,epChurn,epChurnGross,life,ltv,smAIPL,smAAMEL,sm,nu,cac,lc,burned,newARR,burn,newAdds,wARPU,exitINR:exit*c.fx,
+          winL:mlabel(first.m)+(n>1?('–'+mlabel(last.m)):''),curL:mlabel(last.m)};
+}
+function kpis(c){
+  const exit=EXITARR, asOf=ACTUAL[ACTUAL.length-1].m;
+  let jan=ACTUAL.findIndex(d=>d.m>='2026-01-01'); jan=jan<1?1:jan;
+  const ytdWin=ACTUAL.slice(jan), curWin=[ACTUAL[ACTUAL.length-1]];
+  const wA=segARPU(asOf);                         // weighted ARPU = CURRENT month (Task 1)
+  const dpm=c.delayedRenew/Math.max(1,ytdWin.length);   // input is cumulative Jan->as-of; convert to per-month
+  const ytd=kset(ytdWin,c,wA.w,exit,dpm), cur=kset(curWin,c,wA.w,exit,dpm);
+  const runB=simulate(c,c.sBest).months, runO=simulate(c,c.sOpt).months, runP=simulate(c,c.sPess).months;
+  const projExit=exit+sum(projRows().filter(d=>d.m<=AEND),'arrNewProj');
+  const actNU=ACTUAL.filter(d=>d.m>='2026-01-01').reduce((s,d)=>s+d.newUsers,0);
+  const projNU=sum(projRows().filter(d=>d.m<=AEND),'projectedNewUsers'), projCust=actNU+projNU-c.hmg;
+  return {asOf,exit,ytd,cur,runB,runO,runP,projExit,projCust,wA,ytdWin,curWin};
+}
+const fUSDm=v=>'$'+(v/1e6).toFixed(2)+'M',fPct=v=>(v*100).toFixed(1)+'%',fMo=v=>v.toFixed(1)+' mo';
+const fInt=v=>Math.round(v).toLocaleString('en-US'),fUSD=v=>'$'+Math.round(v).toLocaleString('en-US'),fX=v=>v.toFixed(2)+'x';
+function ragCol(s){return s>=0.85?'var(--g)':s>=0.5?'var(--a)':'var(--r)';}
+function ragTx(s){return s>=0.85?'var(--g-tx)':s>=0.5?'var(--a-tx)':'var(--r-tx)';}
+function meter(score){const w=Math.max(0,Math.min(score,1))*100;const col=ragCol(score);
+  return `<div class="meter"><div class="track"><i style="width:${w}%;background:${col}"></i></div><span class="mp" style="color:${ragTx(score)}">${Math.round(score*100)}%</span></div>`;}
+
+function spark(vals,color,label,dr){if(!vals||!vals.length)return'';const W=250,H=44,mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;const x=i=>2+(W-4)*i/(vals.length-1),y=v=>H-4-(H-10)*(v-mn)/rng;const ln=vals.map((v,i)=>x(i)+','+y(v)).join(' L');return '<div class="sparkhead"><span>'+label+'</span><span>'+dr+'</span></div><svg class="spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="M'+x(0)+','+H+' L'+ln+' L'+x(vals.length-1)+','+H+' Z" fill="'+color+'" opacity="0.14"/><path d="M'+ln+'" fill="none" stroke="'+color+'" stroke-width="2" vector-effect="non-scaling-stroke"/><circle cx="'+x(vals.length-1)+'" cy="'+y(vals[vals.length-1])+'" r="2.6" fill="'+color+'"/></svg>';}
+let cardMode={}, arpuMode='cur';
+function flipCard(e,el){el.closest('.card').classList.toggle('flipped');}
+function setMode(e,i,m){e.stopPropagation();cardMode[i]=m;render();}
+function setArpu(m){arpuMode=m;render();}
+function cardChart(id,vals,ms,color,fmt,label){
+  const el=document.getElementById(id); if(!el)return;
+  const W=300,H=130,ml=6,mt=10,ih=H-30,iw=W-ml-8;
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
+  const x=i=>ml+iw*i/(vals.length-1), y=v=>mt+ih*(1-(v-mn)/rng);
+  const ln=vals.map((v,i)=>x(i)+','+y(v)).join(' L');
+  const area='M'+x(0)+','+(mt+ih)+' L'+ln+' L'+x(vals.length-1)+','+(mt+ih)+' Z';
+  const dots=vals.map((v,i)=>'<circle cx="'+x(i)+'" cy="'+y(v)+'" r="1.9" fill="'+color+'"/>').join('');
+  const xl=ms.map((m,i)=>(i%3===0)?'<text x="'+x(i)+'" y="'+(H-6)+'" font-size="7.5" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;display:block"><path d="'+area+'" fill="'+color+'" opacity="0.13"/><path d="M'+ln+'" fill="none" stroke="'+color+'" stroke-width="2" vector-effect="non-scaling-stroke"/>'+dots+xl+'</svg>';
+  CHARTS[id]={W,ml,iw,ms,series:[{name:label,vals,color,fmt}]};
+  bindHover(el,id);
+}
+function renderSegments(c,k){
+  const el=document.getElementById('arpuPanel'); if(!el)return;
+  const b=arpuMode, win=b==='cur'?k.curWin:k.ytdWin, T=segTable(win), cur=mlabel(k.asOf);
+  const gm=k.ytd.gm, life=k.ytd.life, fx=c.fx;                 // org GM & lifetime (YTD) applied to geo ARPU
+  const fA=v=>'₹'+Math.round(v).toLocaleString('en-IN'), fD=v=>'$'+Math.round(v).toLocaleString('en-US');
+  const SPEC='var(--c2)', OMNI='var(--c3)', LTVC='var(--c7)';
+  // ARPU by geo & product (grouped bars, scaled to max ARPU)
+  const arows=GEOS.map(g=>({g,s:T.agg[g].Spectra.arpu,o:T.agg[g].Omni.arpu,bl:T.agg[g].blend.arpu,sh:T.totMRR>0?T.agg[g].blend.mrr/T.totMRR:0}));
+  const amax=Math.max(1,...arows.map(r=>Math.max(r.s,r.o)));
+  const arpuBars=arows.map(r=>`<div class="seg-item"><div class="seg-geo"><span>${r.g}</span><span class="seg-share">${(r.sh*100).toFixed(1)}% MRR</span></div>`
+    +`<div class="seg-b"><span class="tag">S</span><div class="tk"><i style="width:${Math.max(2,r.s/amax*100).toFixed(1)}%;background:${SPEC}"></i></div><span class="val">${r.s>0?fA(r.s):'—'}</span></div>`
+    +`<div class="seg-b"><span class="tag">O</span><div class="tk"><i style="width:${Math.max(2,r.o/amax*100).toFixed(1)}%;background:${OMNI}"></i></div><span class="val">${r.o>0?fA(r.o):'—'}</span></div></div>`).join('');
+  const blendAll=T.totU>0?T.totMRR/T.totU:0;
+  const arpuCard=`<div class="segcard" style="--ac:${SPEC}"><h4>ARPU by geography &amp; product</h4><p class="cap">MRR ÷ paid users per segment · ${b==='cur'?cur:'YTD '+mlabel(k.ytdWin[0].m)+'–'+cur}</p>${arpuBars}`
+    +`<div class="seg-legend"><span><i style="background:${SPEC}"></i>Spectra</span><span><i style="background:${OMNI}"></i>Omni</span></div>`
+    +`<div class="segfoot">Org weighted ARPU <b>${fA(k.wA.w)}</b> (MRR-share, ${cur}) → feeds LTV · user-weighted blended <b>${fA(blendAll)}</b></div></div>`;
+  // LTV by geo (geo blended ARPU × org GM × lifetime ÷ FX)
+  const lrows=GEOS.map(g=>({g,v:T.agg[g].blend.arpu*gm*life/fx})).sort((a,b2)=>b2.v-a.v);
+  const lmax=Math.max(1,...lrows.map(r=>r.v));
+  const ltvBars=lrows.map(r=>`<div class="seg-item"><div class="seg-geo"><span>${r.g}</span><span class="seg-share">${fD(r.v)}</span></div>`
+    +`<div class="seg-b"><div class="tk"><i style="width:${Math.max(2,r.v/lmax*100).toFixed(1)}%;background:${LTVC}"></i></div></div></div>`).join('');
+  const ltvCard=`<div class="segcard" style="--ac:${LTVC}"><h4>LTV by geography</h4><p class="cap">Geo ARPU × org GM ${(gm*100).toFixed(0)}% × lifetime ${life.toFixed(0)} mo ÷ FX · indicative</p>${ltvBars}`
+    +`<div class="segfoot">Uses each geography's ARPU with organisation-wide gross margin and lifetime (per-geo churn not in source). GCC leads on ARPU, so on LTV too.</div></div>`;
+  el.innerHTML=`<div class="seg-head"><div><h3>Segment economics</h3><p class="cs">Revenue quality by geography and product. Basis follows the toggle.</p></div>`
+    +`<span class="btoggle"><button class="${b==='ytd'?'on':''}" onclick="setArpu('ytd')">YTD</button><button class="${b==='cur'?'on':''}" onclick="setArpu('${'cur'}')">${cur}</button></span></div>`
+    +`<div class="segrow">${arpuCard}${ltvCard}</div>`;
+}
+function ltvBackHTML(k){
+  const T=segTable(k.curWin);
+  const fA=v=>v>0?'₹'+Math.round(v).toLocaleString('en-IN'):'—';
+  const rows=GEOS.map(g=>{const a=T.agg[g],sh=T.totMRR>0?a.blend.mrr/T.totMRR*100:0;return '<tr><td>'+g+'</td><td>'+fA(a.Spectra.arpu)+'</td><td>'+fA(a.Omni.arpu)+'</td><td><b>'+fA(a.blend.arpu)+'</b></td><td>'+sh.toFixed(0)+'%</td></tr>';}).join('');
+  return '<table class="arpub"><thead><tr><th>Region</th><th>Spectra</th><th>Omni</th><th>Blend</th><th>MRR</th></tr></thead><tbody>'+rows+'</tbody></table><div class="arpubfoot">Weighted ARPU (MRR-share) <b>'+fA(k.wA.w)+'</b> → feeds LTV</div>';
+}
+let inflowMode='mom', expMode='split';
+function setInflow(m){inflowMode=m;render();}
+function setExp(m){expMode=m;render();}
+function drawInflowProj(c){
+  const pr=projRows().filter(d=>d.m<='2027-03-01'); const ms=pr.map(d=>d.m);
+  const vals=pr.map(d=>(d.cashProj||0)/1e6); const n=vals.length;
+  const avg=n?vals.reduce((a,b)=>a+b,0)/n:0;
+  const F=frame(42), ymax=Math.max(...vals,avg,0.1)*1.18;
+  const x=i=>F.ml+F.iw*i/(n-1), y=v=>F.mt+F.ih*(1-v/ymax);
+  const area='M'+x(0)+','+y(0)+' L'+vals.map((v,i)=>x(i)+','+y(v)).join(' L')+' L'+x(n-1)+','+y(0)+' Z';
+  let body;
+  if(inflowMode==='avg'){
+    body='<path d="'+area+'" fill="var(--c4)" opacity="0.05"/>'+vals.map((v,i)=>'<circle cx="'+x(i)+'" cy="'+y(v)+'" r="1.6" fill="var(--c4)" opacity="0.35"/>').join('')
+      +'<line x1="'+F.ml+'" y1="'+y(avg)+'" x2="'+(F.ml+F.iw)+'" y2="'+y(avg)+'" stroke="var(--c4)" stroke-width="2.5"/>'
+      +'<text x="'+(F.ml+F.iw-4)+'" y="'+(y(avg)-7)+'" font-size="11.5" font-weight="700" text-anchor="end" fill="var(--c4)" font-family="var(--mono)">avg ₹'+avg.toFixed(1)+'M/mo</text>';
+  } else {
+    body='<path d="'+area+'" fill="var(--c4)" opacity="0.10"/>'+pathline(F,vals,ymax,'var(--c4)')
+      +vals.map((v,i)=>'<circle cx="'+x(i)+'" cy="'+y(v)+'" r="2.4" fill="var(--c4)"/>').join('')
+      +'<line x1="'+F.ml+'" y1="'+y(avg)+'" x2="'+(F.ml+F.iw)+'" y2="'+y(avg)+'" stroke="#9aa0a8" stroke-dasharray="4 3" opacity="0.6"/>';
+  }
+  const xl=ms.map((m,i)=>(i%2===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="7.5" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+  $('chInflowProj').innerHTML='<svg viewBox="0 0 '+F.W+' '+F.H+'">'+yaxis(F,ymax,t=>'₹'+t.toFixed(0)+'M')+body+xl+'</svg>';
+  CHARTS['chInflowProj']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'Projected inflow',vals:vals.map(v=>v*1e6),color:'var(--c4)',fmt:v=>'₹'+(v/1e6).toFixed(2)+'M'}]};
+  ['mom','avg'].forEach(m=>{const b=document.getElementById('ifm_'+m);if(b)b.classList.toggle('on',inflowMode===m);});
+}
+function drawExpenseProj(c){
+  const pr=projRows().filter(d=>d.m<='2027-03-01'); const ms=pr.map(d=>d.m); const n=ms.length;
+  const tot=c.outflow;
+  const tr=ACTUAL.slice(-3), sum=f=>tr.reduce((s,d)=>s+(d[f]||0),0);
+  const sSM=sum('marketing')+sum('sales'), aSM=sum('aamelMkt')+sum('aamelSales'), cog=sum('cogs'), outf=sum('outflow');
+  const base=outf||1, other=Math.max(0,outf-sSM-aSM-cog);
+  const cats=[{k:'AIPL S&M',s:sSM/base,col:'var(--c8)'},{k:'AAMEL S&M',s:aSM/base,col:'var(--c6)'},{k:'COGS',s:cog/base,col:'var(--c2)'},{k:'Other opex',s:other/base,col:'var(--c9)'}];
+  const F=frame(42), fmtM=v=>'₹'+(v/1e6).toFixed(2)+'M';
+  let inner='',series=null;
+  if(expMode==='cumulative'){
+    const cum=ms.map((m,i)=>tot*(i+1)); const ymax=Math.max(...cum,1)*1.15/1e6;
+    const x=i=>F.ml+F.iw*i/(n-1), y=v=>F.mt+F.ih*(1-v/ymax);
+    const area='M'+x(0)+','+y(0)+' L'+cum.map((v,i)=>x(i)+','+y(v/1e6)).join(' L')+' L'+x(n-1)+','+y(0)+' Z';
+    inner=yaxis(F,ymax,t=>'₹'+t.toFixed(0)+'M')+'<path d="'+area+'" fill="var(--c8)" opacity="0.10"/>'+pathline(F,cum.map(v=>v/1e6),ymax,'var(--c8)')+cum.map((v,i)=>'<circle cx="'+x(i)+'" cy="'+y(v/1e6)+'" r="2.4" fill="var(--c8)"/>').join('')+ms.map((m,i)=>(i%2===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="7.5" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+    series=[{name:'Cumulative expense',vals:cum,color:'var(--c8)',fmt:fmtM}];
+  } else if(expMode==='avg'){
+    const mx=Math.max(...cats.map(ct=>tot*ct.s),1), rowH=F.ih/cats.length, bx=F.ml+82;
+    inner=cats.map((ct,i)=>{const cy=F.mt+rowH*(i+0.5), w=Math.max(2,(F.ml+F.iw-bx-46)*(tot*ct.s/mx));
+      return '<text x="'+F.ml+'" y="'+(cy+3)+'" font-size="9" fill="var(--ink)" font-family="var(--mono)">'+ct.k+'</text>'
+        +'<rect x="'+bx+'" y="'+(cy-7)+'" width="'+w+'" height="14" rx="3" fill="'+ct.col+'"/>'
+        +'<text x="'+(bx+w+5)+'" y="'+(cy+3)+'" font-size="8.5" fill="var(--muted)" font-family="var(--mono)">'+fmtM(tot*ct.s)+'</text>';}).join('');
+  } else {
+    const ymax=tot*1.2/1e6; const x=i=>F.ml+F.iw*(i+0.5)/n, y=v=>F.mt+F.ih*(1-v/ymax);
+    const bw=Math.min(24,F.iw/n*0.62);
+    inner=yaxis(F,ymax,t=>'₹'+t.toFixed(0)+'M');
+    ms.forEach((m,i)=>{let acc=0;cats.forEach(ct=>{const v=tot*ct.s/1e6,y0=y(acc+v),y1=y(acc);inner+='<rect x="'+(x(i)-bw/2)+'" y="'+y0+'" width="'+bw+'" height="'+Math.max(0,y1-y0)+'" fill="'+ct.col+'"/>';acc+=v;});});
+    inner+=ms.map((m,i)=>(i%2===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="7.5" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+    series=[{name:'Monthly expense',vals:ms.map(()=>tot),color:'var(--c8)',fmt:fmtM}];
+  }
+  $('chExpProj').innerHTML='<svg viewBox="0 0 '+F.W+' '+F.H+'">'+inner+'</svg>';
+  if(series)CHARTS['chExpProj']={W:F.W,ml:F.ml,iw:F.iw,ms,series};else delete CHARTS['chExpProj'];
+  ['split','cumulative','avg'].forEach(m=>{const b=document.getElementById('exm_'+m);if(b)b.classList.toggle('on',expMode===m);});
+}
+function render(){
+  const c=cfg(),k=kpis(c);
+  $('asofTxt').textContent='As of '+mlabel(k.asOf);
+  $('printhead').innerHTML=`<div class="ph"><div class="phL">AUGNITO · Investor KPI Dashboard</div><div class="phR">As of ${mlabel(k.asOf)} · Window ${mlabel(ACTUAL[range.from].m)}→${mlabel(k.asOf)} · Assessment Jan-26→Jan-27</div></div>`;
+  $('winnote').innerHTML=`<span class="d"></span>Each tile toggles YTD (Jan → ${mlabel(k.asOf)}) or current month (${mlabel(k.asOf)}) · LTV uses geo-weighted ARPU on ${mlabel(k.asOf)} · actuals stop at the last complete month before ${mlabel(currentMonthISO())} (auto)`;
+  updateSpendNote();
+  const CUR=mlabel(k.asOf), mode=i=>cardMode[i]||'ytd', gv=b=>b==='cur'?k.cur:k.ytd;
+  const fINR=v=>'₹'+Math.round(v).toLocaleString('en-IN'),fINRm=v=>'₹'+(v/1e6).toFixed(2)+'M';
+  const AM=ACTUAL.map(d=>d.m), AY=ACTUAL.filter(d=>d.m>='2026-01-01'), AYM=AY.map(d=>d.m), R=mlabel(AYM[0])+'–'+mlabel(AYM[AYM.length-1]);
+  const cardDefs=[
+   {t:'Exit ARR · contracted, USD',tog:false,val:()=>fUSDm(k.exit),sub:()=>`Goal ${fUSDm(c.gExit)} · ${k.exit>=c.gExit?'goal met':'short by '+fUSDm(c.gExit-k.exit)}`,sc:()=>k.exit/c.gExit,
+    def:'Point-in-time contracted annual recurring revenue (USD).',calc:()=>'Contracted Exit ARR\n= '+fUSDm(k.exit)+'\ngoal '+fUSDm(c.gExit)+'  ·  '+(k.exit>=c.gExit?'goal met':'short by '+fUSDm(c.gExit-k.exit)),
+    type:()=>'POINT-IN-TIME · '+CUR,chart:{v:ACTUAL.map(d=>d.arrINR/c.fx/1e6),l:'ARR run-rate, $M',fmt:v=>'$'+v.toFixed(2)+'M'}},
+   {t:'Accrued revenue · % of Exit ARR',tog:true,val:b=>fPct(gv(b).accrued),sub:b=>{const x=gv(b);return `Goal ${Math.round(c.gAcc*100)}% · ${x.accrued>=c.gAcc?'goal met':'short by '+((c.gAcc-x.accrued)*100).toFixed(1)+' pts'}`;},sc:b=>gv(b).accrued/c.gAcc,
+    def:'Accrued revenue (AIPL+AAMEL) annualised, as % of contracted Exit ARR.',calc:b=>{const x=gv(b);return 'Σ accrued ('+x.n+' mo) = '+fINRm(x.accrSum)+'\n×12/'+x.n+' = '+fINRm(x.accrAnn)+'\n÷ Exit ARR '+fINRm(x.exitINR)+' = '+fPct(x.accrued);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'YTD ANNUALISED · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>(d.accruedAIPL+d.accruedAAMEL)/1e7),l:'Accrued rev, ₹ Cr',fmt:v=>'₹'+v.toFixed(2)+' Cr'}},
+   {t:'NRR · Ent + Partners',tog:true,val:b=>fPct(gv(b).nrr),sub:b=>{const x=gv(b);return `Goal ${Math.round(c.gNrr*100)}% · ${x.nrr>=c.gNrr?'goal met':'short by '+((c.gNrr-x.nrr)*100).toFixed(1)+' pts'}`;},sc:b=>gv(b).nrr/c.gNrr,
+    def:'Net revenue retention (Ent+Partners). Opening = prior-month MRR; delayed renewals added back.',calc:b=>{const x=gv(b);return '( Open '+fINRm(x.openEP)+' + Exp '+fINRm(x.exp)+'\n − Churn '+fINRm(x.chn)+' + DelRen '+fINRm(x.dr)+'\n − Contr '+fINRm(x.con)+' ) ÷ Open\n= '+fPct(x.nrr);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'ROLLING · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>d.mrrEP/1e7),l:'MRR E/P, ₹ Cr',fmt:v=>'₹'+v.toFixed(2)+' Cr'}},
+   {t:'Cash runway · months (optimistic)',tog:false,val:()=>fMo(k.runO),sub:()=>`Goal ${c.gRun} mo · B/O/P ${k.runB.toFixed(1)}/${k.runO.toFixed(1)}/${k.runP.toFixed(1)} · ${k.runO>=c.gRun?'goal met':'short by '+(c.gRun-k.runO).toFixed(1)+' mo'}`,sc:()=>k.runO/c.gRun,
+    def:'Months of cash under the optimistic (70% of projected inflow) scenario.',calc:()=>'Cash '+fINRm(c.cash)+' + inflow×70%\n+ Scribetech − spend '+fINRm(c.outflow)+'/mo\n→ 0 at '+k.runO.toFixed(1)+' mo (B '+k.runB.toFixed(1)+'/P '+k.runP.toFixed(1)+')',
+    type:()=>'FORWARD SIM',chart:{v:ACTUAL.map(d=>-d.netBurn/1e6),l:'Net burn, ₹ M',fmt:v=>'₹'+v.toFixed(1)+'M'}},
+   {t:'New users added · excl. HMG',tog:true,val:b=>fInt(gv(b).newAdds),sub:b=>{const x=gv(b);return `Goal ${fInt(c.gCust)} · ${x.newAdds>=c.gCust?'goal met':'short by '+fInt(c.gCust-x.newAdds)+' users'}`;},sc:b=>gv(b).newAdds/c.gCust,
+    def:'New users acquired (source New Users column), HMG excluded.',calc:b=>{const x=gv(b);return 'Σ new users ('+x.n+' mo) = '+Math.round(x.nu)+'\n− HMG '+c.hmg+' = '+fInt(x.newAdds);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'CUMULATIVE · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>d.newUsers),l:'New users / mo',fmt:v=>Math.round(v).toLocaleString('en-US')}},
+   {t:'Burn multiple · lower is better',tog:true,val:b=>{const x=gv(b);return x.newARR<=0?'n/m':fX(x.burn);},sub:b=>{const x=gv(b);return x.newARR<=0?'Net-new ARR ≤ 0 this month — burn multiple not meaningful':`Ceiling ${c.gBurn.toFixed(1)}x · ${x.burn<=c.gBurn?'within goal':'over by '+(x.burn-c.gBurn).toFixed(2)+'x'}`;},sc:b=>{const x=gv(b);return x.newARR<=0?null:c.gBurn/x.burn;},
+    def:'Net cash burned per ₹1 of net-new ARR. Lower is better.',calc:b=>{const x=gv(b);return 'Burned '+fINRm(x.burned)+'\n÷ net-new ARR '+fINRm(x.newARR)+'\n= '+fX(x.burn);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'CUMULATIVE · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>d.deltaARR/1e7),l:'Net-new ARR, ₹ Cr',fmt:v=>'₹'+v.toFixed(2)+' Cr'}},
+   {t:'LTV · USD',tog:true,info:true,val:b=>fUSD(gv(b).ltv),sub:()=>'Gross-profit lifetime value / user',sc:()=>null,
+    def:'ARPU (geo MRR-weighted, current month) × GM% (accrued rev) × lifetime ÷ FX. Lifetime = 1 ÷ (Σ Churn MRR E/P ÷ Σ prior MRR E/P). Delayed renewals optional (Assumptions).',calc:b=>{const x=gv(b);const ch=c.ltvDelayed?'churn '+(x.epChurnGross*100).toFixed(2)+'%→'+(x.epChurn*100).toFixed(2)+'% (del-renew)':'churn '+(x.epChurn*100).toFixed(2)+'%/mo (Σchurn÷ΣMRR)';return 'wARPU '+fINR(k.wA.w)+' × GM '+(x.gm*100).toFixed(1)+'%\n× life '+x.life.toFixed(0)+' mo\n'+ch+'\n÷ FX '+c.fx+' = '+fUSD(x.ltv);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'ROLLING · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>d.arpu),l:'Blended ARPU, ₹',fmt:v=>'₹'+Math.round(v)}},
+   {t:'CAC · USD',tog:true,info:true,val:b=>fUSD(gv(b).cac),sub:()=>'AIPL + AAMEL S&M / new user',sc:()=>null,
+    def:'(AIPL + AAMEL sales & marketing) ÷ new users ÷ FX.',calc:b=>{const x=gv(b);return 'AIPL '+fINRm(x.smAIPL)+' + AAMEL '+fINRm(x.smAAMEL)+'\n= '+fINRm(x.sm)+' ÷ '+Math.round(x.nu)+' new\n÷ FX '+c.fx+' = '+fUSD(x.cac);},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'ROLLING · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>(d.marketing+d.sales+d.aamelMkt+d.aamelSales)/1e6),l:'S&M spend, ₹ M',fmt:v=>'₹'+v.toFixed(2)+'M'}},
+   {t:'LTV : CAC',tog:true,val:b=>fX(gv(b).lc),sub:b=>{const x=gv(b);return `Goal ≥${c.gLc.toFixed(1)}x · ${x.lc>=c.gLc?'goal met':'short by '+(c.gLc-x.lc).toFixed(2)+'x'}`;},sc:b=>gv(b).lc/c.gLc,
+    def:'Acquisition efficiency = LTV ÷ CAC.',calc:b=>{const x=gv(b);return fUSD(x.ltv)+' ÷ '+fUSD(x.cac)+'\n= '+fX(x.lc)+' · goal ≥'+c.gLc.toFixed(1)+'x';},
+    type:b=>b==='cur'?'CURRENT MONTH · '+CUR:'ROLLING · '+gv('ytd').winL,chart:{v:ACTUAL.map(d=>d.newUsers),l:'New users / mo',fmt:v=>Math.round(v).toLocaleString('en-US')}},
+  ];
+  $('cards').innerHTML=cardDefs.map((cd,i)=>{const b=cd.tog?mode(i):'ytd';
+    const head=cd.tog?`<span class="btoggle"><button class="${b==='ytd'?'on':''}" onclick="setMode(event,${i},'ytd')">YTD</button><button class="${b==='cur'?'on':''}" onclick="setMode(event,${i},'cur')">${CUR}</button></span>`:`<span class="th-basis">${cd.type('ytd')}</span>`;
+    const sval=cd.info?null:cd.sc(b);const foot=(cd.info||sval==null)?`<span class="chip info"><span class="dot"></span>${cd.info?(b==='cur'?'current month':'rolling window'):'not meaningful'}</span>`:meter(sval);
+    return `<div class="tile" style="--ac:${AC[i]}"><div class="tilehead"><div class="th-title"><span class="sq"></span>${cd.t}</div>${head}</div><div class="card"><div class="card-inner"><div class="face front" onclick="flipCard(event,this)"><div class="fmain"><div class="v">${cd.val(b)}</div><div class="sub2">${cd.sub(b)}</div><div class="foot">${foot}</div></div><div class="fbody"><div class="fdef">${cd.def}</div><div class="fcalc">${cd.calc(b)}</div></div><div class="flip-hint">tap for trend \u21bb</div></div><div class="face back" onclick="flipCard(event,this)">${i===6?`<div class="bhead"><span>WEIGHTED ARPU · region×product · ${CUR}</span><span>tap to close \u21ba</span></div>${ltvBackHTML(k)}`:`<div class="bhead"><span>${cd.type(b)}</span><span>tap to close \u21ba</span></div><div class="cchart" id="cc${i}"></div><div class="sparkhead"><span>${cd.chart.l}</span><span>${R}</span></div>`}</div></div></div></div>`;}).join('');
+  cardDefs.forEach((cd,i)=>{if(i===6)return;cardChart('cc'+i,cd.chart.v.slice(-AYM.length),AYM,AC[i],cd.chart.fmt,cd.chart.l);});
+  renderSegments(c,k);
+  const yy=k.ytd;
+  const P=[
+   ['Exit ARR',fUSDm(k.exit),fUSDm(c.gExit),fUSDm(k.projExit),(k.projExit>=c.gExit?'goal met':'short by '+fUSDm(c.gExit-k.projExit)),k.projExit/c.gExit],
+   ['Cash runway (mo)',fMo(k.runO),c.gRun+' mo',fMo(k.runO),(k.runO>=c.gRun?'goal met':'short by '+(c.gRun-k.runO).toFixed(1)+' mo'),k.runO/c.gRun],
+   ['New users added',fInt(yy.newAdds),fInt(c.gCust),fInt(k.projCust),(k.projCust>=c.gCust?'goal met':'short by '+fInt(c.gCust-k.projCust)),k.projCust/c.gCust],
+   ['NRR · Ent+Partners',fPct(yy.nrr),Math.round(c.gNrr*100)+'%',fPct(yy.nrr),(yy.nrr>=c.gNrr?'goal met':'short by '+((c.gNrr-yy.nrr)*100).toFixed(1)+' pts'),yy.nrr/c.gNrr],
+   ['LTV : CAC',fX(yy.lc),c.gLc.toFixed(1)+'x',fX(yy.lc),(yy.lc>=c.gLc?'goal met':'short by '+(c.gLc-yy.lc).toFixed(2)+'x'),yy.lc/c.gLc],
+   ['Burn multiple',fX(yy.burn),'≤'+c.gBurn.toFixed(1)+'x',fX(yy.burn),(yy.burn<=c.gBurn?'goal met':'over by '+(yy.burn-c.gBurn).toFixed(2)+'x'),c.gBurn/yy.burn],
+  ];
+  (function(){const _pp=projRows().filter(d=>d.m<='2027-03-01');const _ai=_pp.length?_pp.reduce((s,d)=>s+(d.cashProj||0),0)/_pp.length:0;const _t3=ACTUAL.slice(-3);const _ci=_t3.length?_t3.reduce((s,d)=>s+(d.inflow||0),0)/_t3.length:0;const _ce=_t3.length?_t3.reduce((s,d)=>s+(d.outflow||0),0)/_t3.length:0;const _pe=c.outflow;const _s3=f=>_t3.reduce((s,d)=>s+(d[f]||0),0);const _of=_s3('outflow')||1;const _sh={cogs:_s3('cogs')/_of,aiplM:_s3('marketing')/_of,aiplS:_s3('sales')/_of,aamelM:_s3('aamelMkt')/_of,aamelS:_s3('aamelSales')/_of};const _ot=Math.max(0,1-_sh.cogs-_sh.aiplM-_sh.aiplS-_sh.aamelM-_sh.aamelS);P.push(['Avg cash inflow /mo',fINRm(_ci),c.gInflow?fINRm(c.gInflow):'—',fINRm(_ai),(c.gInflow?(_ai>=c.gInflow?'goal met':'short by '+fINRm(c.gInflow-_ai)):'set a target'),c.gInflow?_ai/c.gInflow:1]);P.push(['Avg monthly expense',fINRm(_ce),c.gExp?'≤'+fINRm(c.gExp):'—',fINRm(_pe),(c.gExp?(_pe<=c.gExp?'within goal':'over by '+fINRm(_pe-c.gExp)):'set a target'),c.gExp?(_pe<=c.gExp?1:Math.min(0.84,c.gExp/_pe)):1]);P.push([' COGS · cloud','','',fINRm(_pe*_sh.cogs),'',null,'sub']);P.push([' AIPL Marketing','','',fINRm(_pe*_sh.aiplM),'',null,'sub']);P.push([' AIPL Sales','','',fINRm(_pe*_sh.aiplS),'',null,'sub']);P.push([' AAMEL Marketing','','',fINRm(_pe*_sh.aamelM),'',null,'sub']);P.push([' AAMEL Sales','','',fINRm(_pe*_sh.aamelS),'',null,'sub']);P.push([' Other opex','','',fINRm(_pe*_ot),'',null,'sub']);})();
+  $('proj').innerHTML=P.map(r=>{if(r[6]==='sub'){return `<tr class="subrow"><td class="name sub">${r[0]}</td><td class="num"></td><td class="num"></td><td class="num">${r[3]}</td><td class="gap"></td><td class="stcell"></td></tr>`;}const lbl=r[5]>=0.85?'On track':r[5]>=0.5?'At risk':'Off track';const b=r[5]>=0.85?'var(--g-bg)':r[5]>=0.5?'var(--a-bg)':'var(--r-bg)',t=ragTx(r[5]);
+   return `<tr><td class="name">${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="gap">${r[4]}</td><td class="stcell"><span class="st" style="background:${b};color:${t}"><span class="dot"></span>${lbl}</span></td></tr>`;}).join('');
+  $('cashHow').innerHTML=`<b>How cash runway works.</b> Starting from cash in bank (₹${(c.cash/1e7).toFixed(2)} Cr), each future month adds your projected inflow × scenario % (Best 100 / Optimistic 70 / Pessimistic 50) plus Scribetech UK ₹${(c.scribeAmt/1e5).toFixed(0)}L/mo for ${c.scribeMonths} months, and subtracts monthly spend (₹${(c.outflow/1e7).toFixed(2)} Cr, on the “${$('spendBasis')?$('spendBasis').selectedOptions[0].text:''}” basis). Runway = months until the balance hits zero. Scribetech is added on top of scenario-scaled inflows (not scaled). Current: Best ${k.runB.toFixed(1)} · Optimistic ${k.runO.toFixed(1)} · Pessimistic ${k.runP.toFixed(1)} months.`;
+  drawArr(c,k);drawUsersProj(c);drawCashProj(c);drawInflowProj(c);drawExpenseProj(c);drawMix();drawBurn();
+}
+
+/* charts */
+function frame(pad){return {W:340,H:210,ml:pad,mt:12,iw:340-pad-12,ih:210-12-26};}
+function yaxis(F,ymax,fmt,ymin){ymin=ymin||0;let g='';[ymin,(ymin+ymax)/2,ymax].forEach(t=>{const y=F.mt+F.ih*(1-(t-ymin)/(ymax-ymin));g+=`<line x1="${F.ml}" y1="${y}" x2="${F.ml+F.iw}" y2="${y}" stroke="#EEF0F2"/><text x="${F.ml-6}" y="${y+3}" font-size="9" fill="#9aa0a8" text-anchor="end" font-family="var(--mono)">${fmt(t)}</text>`;});return g;}
+function band(F,n){const x=i=>F.ml+F.iw*i/(n-1);return `<rect x="${x(range.from)}" y="${F.mt}" width="${Math.max(x(range.to)-x(range.from),2)}" height="${F.ih}" fill="#4F46E5" opacity="0.06"/>`;}
+function xlabels(F,arr,step){const n=arr.length,x=i=>F.ml+F.iw*i/(n-1);return arr.map((m,i)=>(i%step===0)?`<text x="${x(i)}" y="${F.H-8}" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">${mlabel(m)}</text>`:'').join('');}
+function pathline(F,vals,ymax,col,ymin){ymin=ymin||0;const x=i=>F.ml+F.iw*i/(vals.length-1),y=v=>F.mt+F.ih*(1-(v-ymin)/(ymax-ymin));return `<path d="M${vals.map((v,i)=>`${x(i)},${y(v)}`).join(' L')}" fill="none" stroke="${col}" stroke-width="2.2"/>`;}
+function drawArr(c,k){
+  const fwd=['2026-08-01','2026-09-01','2026-10-01','2026-11-01','2026-12-01','2027-01-01','2027-02-01','2027-03-01'];
+  const ms=['2026-07-01'].concat(fwd); let pts=[3230000]; fwd.forEach(m=>pts.push(pts[pts.length-1]+(byMonth(m).arrNewProj||0)));
+  const F=frame(44),goal=c.gExit,ymax=Math.max(goal,Math.max(...pts))*1.12;
+  const x=i=>F.ml+F.iw*i/(pts.length-1),y=v=>F.mt+F.ih*(1-v/ymax);
+  const area='M'+x(0)+','+y(0)+' L'+pts.map((v,i)=>x(i)+','+y(v)).join(' L')+' L'+x(pts.length-1)+','+y(0)+' Z';
+  const gl='<line x1="'+F.ml+'" y1="'+y(goal)+'" x2="'+(F.ml+F.iw)+'" y2="'+y(goal)+'" stroke="#15803D" stroke-width="1.5" stroke-dasharray="5 4"/>';
+  const dots=pts.map((v,i)=>'<circle cx="'+x(i)+'" cy="'+y(v)+'" r="2.6" fill="var(--c1)"/>').join('');
+  const xl=ms.map((m,i)=>(i%2===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+  $('chArr').innerHTML='<svg viewBox="0 0 '+F.W+' '+F.H+'">'+yaxis(F,ymax,t=>'$'+(t/1e6).toFixed(1)+'M')+'<path d="'+area+'" fill="var(--c1)" opacity="0.08"/>'+gl+pathline(F,pts,ymax,'var(--c1)')+dots+xl+'</svg>';
+  CHARTS['chArr']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'Projected ARR',vals:pts,color:'var(--c1)',fmt:v=>'$'+(v/1e6).toFixed(2)+'M'},{name:'Goal',vals:ms.map(()=>goal),color:'#15803D',fmt:v=>'$'+(v/1e6).toFixed(2)+'M'}]};
+}
+function drawUsersProj(c){
+  const aRows=ACTUAL.filter(d=>d.m>='2026-01-01');let _cu=0;const aMs=aRows.map(d=>d.m),aV=aRows.map(d=>{_cu+=d.newUsers;return _cu;});
+  const pr=projRows().filter(d=>d.m<='2027-03-01');let run=aV[aV.length-1];const pV=pr.map(d=>{run+=(d.projectedNewUsers||0);return run;});const pMs=pr.map(d=>d.m);
+  const ms=aMs.concat(pMs),n=ms.length,F=frame(44),goal=c.gCust,ymax=Math.max(goal,Math.max(...aV,...pV))*1.1;
+  const x=i=>F.ml+F.iw*i/(n-1),y=v=>F.mt+F.ih*(1-v/ymax);
+  const aLine='M'+aV.map((v,i)=>x(i)+','+y(v)).join(' L');
+  const s0=aV.length-1;const ppts=[[s0,aV[s0]]].concat(pV.map((v,i)=>[aV.length+i,v]));
+  const pLine='<path d="M'+ppts.map(p=>x(p[0])+','+y(p[1])).join(' L')+'" fill="none" stroke="var(--c5)" stroke-width="2.2" stroke-dasharray="5 4"/>'+ppts.slice(1).map(p=>'<circle cx="'+x(p[0])+'" cy="'+y(p[1])+'" r="2.2" fill="var(--c5)"/>').join('');
+  const gl='<line x1="'+F.ml+'" y1="'+y(goal)+'" x2="'+(F.ml+F.iw)+'" y2="'+y(goal)+'" stroke="#15803D" stroke-width="1.5" stroke-dasharray="5 4"/>';
+  const xl=ms.map((m,i)=>(i%3===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+mlabel(m)+'</text>':'').join('');
+  $('chUsersProj').innerHTML='<svg viewBox="0 0 '+F.W+' '+F.H+'">'+yaxis(F,ymax,t=>Math.round(t/1000)+'k')+gl+'<path d="'+aLine+'" fill="none" stroke="var(--c5)" stroke-width="2.2"/>'+pLine+xl+'</svg>';
+  const uf=v=>Math.round(v).toLocaleString('en-US');
+  CHARTS['chUsersProj']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'New users added (cum.)',vals:aV.concat(pV),color:'var(--c5)',fmt:uf},{name:'Goal',vals:ms.map(()=>goal),color:'#15803D',fmt:uf}]};
+}
+function drawCashProj(c){
+  const pB=simulate(c,c.sBest).path,pO=simulate(c,c.sOpt).path,pP=simulate(c,c.sPess).path;
+  const n=Math.min(9,Math.max(pB.length,pO.length,pP.length));
+  const pad=a=>{a=a.slice(0,n);while(a.length<n)a.push(null);return a;};
+  const B=pad(pB),O=pad(pO),Pp=pad(pP);
+  const startM=ACTUAL[ACTUAL.length-1].m;const isoM=[];{let dd=new Date(+startM.slice(0,4),+startM.slice(5,7)-1,1);for(let i=0;i<n;i++){isoM.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-01');dd.setMonth(dd.getMonth()+1);}}
+  const lbls=isoM.map(mlabel);
+  const allv=[...B,...O,...Pp].filter(v=>v!=null);const ymax=Math.max(...allv)/1e6*1.12,ymin=Math.min(0,Math.min(...allv)/1e6);
+  const F=frame(40);const x=i=>F.ml+F.iw*i/(n-1),y=v=>F.mt+F.ih*(1-(v-ymin)/(ymax-ymin));
+  const seg=(arr,col)=>{const p=arr.map((v,i)=>v==null?null:x(i)+','+y(v/1e6)).filter(Boolean);return '<path d="M'+p.join(' L')+'" fill="none" stroke="'+col+'" stroke-width="2.2"/>';};
+  const zero='<line x1="'+F.ml+'" y1="'+y(0)+'" x2="'+(F.ml+F.iw)+'" y2="'+y(0)+'" stroke="#d1d5db" stroke-dasharray="3 3"/>';
+  $('chCashProj').innerHTML='<svg viewBox="0 0 '+F.W+' '+F.H+'">'+yaxis(F,ymax,t=>Math.round(t),ymin)+zero+seg(B,'var(--c9)')+seg(O,'var(--c4)')+seg(Pp,'var(--c6)')+lbls.map((m,i)=>(i%2===0)?'<text x="'+x(i)+'" y="'+(F.H-8)+'" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">'+m+'</text>':'').join('')+'</svg>';
+  const cf=v=>v==null?'—':'₹'+(v/1e6).toFixed(1)+'M';
+  CHARTS['chCashProj']={W:F.W,ml:F.ml,iw:F.iw,ms:isoM,series:[{name:'Best 100%',vals:B,color:'var(--c9)',fmt:cf},{name:'Optimistic 70%',vals:O,color:'var(--c4)',fmt:cf},{name:'Pessimistic 50%',vals:Pp,color:'var(--c6)',fmt:cf}]};
+}
+function drawUsers(c){
+  const aRows=ACTUAL.filter(d=>d.m>='2026-01-01');let _cu=0;const aMs=aRows.map(d=>d.m),aV=aRows.map(d=>{_cu+=d.newUsers;return _cu-c.hmg;}),goal=c.gCust;
+  const pr=projRows().filter(d=>d.m<=AEND);let run=aV.length?aV[aV.length-1]:0;const pV=pr.map(d=>{run+=(d.projectedNewUsers||0);return run;});const pMs=pr.map(d=>d.m);
+  const ms=aMs.concat(pMs),n=ms.length,F=frame(44),ymax=Math.max(goal,Math.max(...aV,...(pV.length?pV:[0])))*1.1;
+  const x=i=>F.ml+F.iw*i/(n-1),y=v=>F.mt+F.ih*(1-v/ymax);
+  const aLine='M'+aV.map((v,i)=>`${x(i)},${y(v)}`).join(' L');
+  let pLine='';if(pV.length){const s0=aV.length-1;const pts=[[s0,aV[s0]]].concat(pV.map((v,i)=>[aV.length+i,v]));pLine=`<path d="M${pts.map(p=>`${x(p[0])},${y(p[1])}`).join(' L')}" fill="none" stroke="var(--c5)" stroke-width="2.2" stroke-dasharray="5 4"/>`+pts.slice(1).map(p=>`<circle cx="${x(p[0])}" cy="${y(p[1])}" r="2.2" fill="var(--c5)"/>`).join('');}
+  const gl=`<line x1="${F.ml}" y1="${y(goal)}" x2="${F.ml+F.iw}" y2="${y(goal)}" stroke="#15803D" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  const xx=i=>F.ml+F.iw*i/(n-1);const bd=`<rect x="${xx(range.from)}" y="${F.mt}" width="${Math.max(xx(range.to)-xx(range.from),2)}" height="${F.ih}" fill="#4F46E5" opacity="0.06"/>`;
+  const xl=ms.map((m,i)=>(i%3===0)?`<text x="${x(i)}" y="${F.H-8}" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">${mlabel(m)}</text>`:'').join('');
+  $('chUsers').innerHTML=`<svg viewBox="0 0 ${F.W} ${F.H}">${yaxis(F,ymax,t=>Math.round(t/1000)+'k')}${bd}${gl}<path d="${aLine}" fill="none" stroke="var(--c5)" stroke-width="2.2"/>${pLine}${xl}</svg>`;
+  const uf=v=>Math.round(v).toLocaleString('en-US');
+  CHARTS['chUsers']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'New users (cum.)',vals:aV.concat(pV),color:'var(--c5)',fmt:uf},{name:'Goal',vals:ms.map(()=>goal),color:'#15803D',fmt:uf}]};}
+function drawCash(c){
+  const pB=simulate(c,c.sBest).path,pO=simulate(c,c.sOpt).path,pP=simulate(c,c.sPess).path;
+  const n=Math.min(9,Math.max(pB.length,pO.length,pP.length));
+  const pad=a=>{a=a.slice(0,n);while(a.length<n)a.push(null);return a;}
+  const B=pad(pB),O=pad(pO),Pp=pad(pP);
+  const startM=ACTUAL[ACTUAL.length-1].m;const isoM=[];{let dd=new Date(+startM.slice(0,4),+startM.slice(5,7)-1,1);for(let i=0;i<n;i++){isoM.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-01');dd.setMonth(dd.getMonth()+1);}}
+  const lbls=isoM.map(mlabel);
+  const allv=[...B,...O,...Pp].filter(v=>v!=null);const ymax=Math.max(...allv)/1e6*1.12,ymin=Math.min(0,Math.min(...allv)/1e6);
+  const F=frame(40);const x=i=>F.ml+F.iw*i/(n-1),y=v=>F.mt+F.ih*(1-(v-ymin)/(ymax-ymin));
+  const seg=(arr,col)=>{const p=arr.map((v,i)=>v==null?null:`${x(i)},${y(v/1e6)}`).filter(Boolean);return `<path d="M${p.join(' L')}" fill="none" stroke="${col}" stroke-width="2.2"/>`;};
+  const zero=`<line x1="${F.ml}" y1="${y(0)}" x2="${F.ml+F.iw}" y2="${y(0)}" stroke="#d1d5db" stroke-dasharray="3 3"/>`;
+  $('chCash').innerHTML=`<svg viewBox="0 0 ${F.W} ${F.H}">${yaxis(F,ymax,t=>Math.round(t),ymin)}${zero}${seg(B,'var(--c9)')}${seg(O,'var(--c4)')}${seg(Pp,'var(--c6)')}${lbls.map((m,i)=>(i%2===0)?`<text x="${x(i)}" y="${F.H-8}" font-size="8" fill="#9aa0a8" text-anchor="middle" font-family="var(--mono)">${m}</text>`:'').join('')}</svg>`;
+  const cf=v=>v==null?'—':'₹'+(v/1e6).toFixed(1)+'M';
+  CHARTS['chCash']={W:F.W,ml:F.ml,iw:F.iw,ms:isoM,series:[{name:'Best 100%',vals:B,color:'var(--c9)',fmt:cf},{name:'Optimistic 70%',vals:O,color:'var(--c4)',fmt:cf},{name:'Pessimistic 50%',vals:Pp,color:'var(--c6)',fmt:cf}]};
+}
+function drawMix(){const ep=ACTUAL.map(d=>d.mrrEP/1e6),rt=ACTUAL.map(d=>d.mrrRetail/1e6),ms=ACTUAL.map(d=>d.m),F=frame(40),ymax=Math.max(...ep)*1.15;
+  $('chMix').innerHTML=`<svg viewBox="0 0 ${F.W} ${F.H}">${yaxis(F,ymax,t=>Math.round(t))}${band(F,ep.length)}${pathline(F,ep,ymax,'var(--c3)')}${pathline(F,rt,ymax,'var(--c2)')}${xlabels(F,ms,3)}</svg>`;
+  const mf=v=>'₹'+v.toFixed(1)+'M';
+  CHARTS['chMix']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'Ent + Partners',vals:ep,color:'var(--c3)',fmt:mf},{name:'Retail',vals:rt,color:'var(--c2)',fmt:mf}]};}
+function drawBurn(){const vals=ACTUAL.map(d=>-d.netBurn/1e6),ms=ACTUAL.map(d=>d.m),F=frame(40),ymax=Math.max(...vals)*1.1,bw=F.iw/vals.length*0.6;
+  const x=i=>F.ml+F.iw*(i+0.5)/vals.length,y=v=>F.mt+F.ih*(1-v/ymax);
+  const bars=vals.map((v,i)=>{const w=i>=range.from&&i<=range.to;return `<rect x="${x(i)-bw/2}" y="${y(v)}" width="${bw}" height="${F.mt+F.ih-y(v)}" fill="var(--c4)" opacity="${w?1:.35}" rx="1.5"/>`;}).join('');
+  $('chBurn').innerHTML=`<svg viewBox="0 0 ${F.W} ${F.H}">${yaxis(F,ymax,t=>Math.round(t))}${bars}${xlabels(F,ms,3)}</svg>`;
+  CHARTS['chBurn']={W:F.W,ml:F.ml,iw:F.iw,ms,series:[{name:'Net burn',vals,color:'var(--c4)',fmt:v=>'₹'+v.toFixed(1)+'M'}]};}
+function bindHover(el,id){if(!el)return;el.addEventListener('mousemove',e=>chartHover(e,id));el.addEventListener('mouseleave',chartLeave);el.addEventListener('touchstart',e=>chartHover(e,id),{passive:true});el.addEventListener('touchmove',e=>{e.preventDefault();chartHover(e,id);},{passive:false});el.addEventListener('touchend',chartLeave);}
+function chartHover(e,id){const c=CHARTS[id];if(!c)return;if(e.touches&&e.touches[0])e=e.touches[0];const svg=document.getElementById(id).querySelector('svg');if(!svg)return;const r=svg.getBoundingClientRect();const sc=r.width/c.W;let frac=(e.clientX-r.left-c.ml*sc)/(c.iw*sc);frac=Math.max(0,Math.min(1,frac));const i=Math.round(frac*(c.ms.length-1));const tip=document.getElementById('chartTip');tip.style.display='block';tip.style.left=Math.min(e.clientX+14,window.innerWidth-180)+'px';tip.style.top=(e.clientY+14)+'px';tip.innerHTML='<b>'+mlabel(c.ms[i])+'</b>'+c.series.map(s=>'<div><i style="background:'+s.color+'"></i>'+s.name+': '+s.fmt(s.vals[i])+'</div>').join('');}
+function chartLeave(){const t=document.getElementById('chartTip');if(t)t.style.display='none';}
+
+/* Part B */
+const MS=[
+{id:'CDI',nm:'CDI — Clinical Documentation Improvement',state:'Live UAE · awaiting SFDA',pct:55,ac:'var(--c2)',note:`<div class="ch">Where it stands</div><ul><li>Live at NMC Healthcare, UAE</li><li>Live at Ain Al Khaleej Hospital, UAE</li><li>KSA rollout gated on SFDA approval — currently awaited</li><li>Phase 2 inclusion under active discussion with the integration team</li><li>Ready to deploy across the KSA estate once approval is in place</li></ul><div class="ch">Next milestone</div><p>SFDA approval decision, alongside the ongoing Phase 2 discussion with the integration team.</p>`},
+{id:'INPT',nm:'In-patient documentation',state:'Use cases agreed · solutioning',pct:25,ac:'var(--c4)',note:`<div class="ch">Where it stands</div><ul><li>Overall solution scoped jointly with the Cloud Solutions team</li><li>Discharge Summary and Progress Notes agreed as the two primary use cases</li><li>Workflow and technical solutioning in progress on both sides</li><li>To be delivered as part of the Ayyan integration</li><li>Build sequence to be set jointly as solutioning completes</li></ul><div class="ch">Next milestone</div><p>Complete workflow and technical solutioning, then jointly agree the build sequence.</p>`},
+{id:'SPX',nm:'Spectra Intelligence — AI radiology',state:'Entering beta',pct:40,ac:'var(--c7)',note:`<div class="ch">What it is</div><p>AI-powered radiology reporting inside the Spectra Smart Editor. The radiologist dictates findings only; Spectra picks the template, drafts the report and impression, signals every change, and asks when unsure. AI Mode is a toggle — classic dictation is untouched. ~52% of India's CT/MRI reporting market.</p><div class="ch">Shipping in the first release</div><ul><li>Findings-only dictation on the doctor's own template</li><li>Automatic template selection + live transcript</li><li>Impression drafted and updated automatically</li><li>Ultrasound — measurement tables, unit-aware fields, auto calculations</li><li>AI Clarify, Proofread and AI Instructions; every AI change signalled</li></ul><div class="ch">Beta · next step</div><p>Invitation-only production beta in India first, widening before national rollout; UK and GCC to follow. No new licence — a capability for existing Spectra users.</p>`}
+];
+function pbStatus(p){return p>=100?['Delivered',['var(--g-bg)','var(--g-tx)']]:p>=50?['On track',['var(--g-bg)','var(--g-tx)']]:p>0?['At risk',['var(--a-bg)','var(--a-tx)']]:['Not started',['var(--r-bg)','var(--r-tx)']];}
+function renderPB(){
+  $('pbBody').innerHTML=MS.map((m,i)=>{
+    let note=m.note; try{const s=localStorage.getItem('augkpi_'+m.id); if(s!==null)note=s;}catch(e){}
+    return `<div class="pk-card" style="--ac:${m.ac}"><div class="pk-hd"><div class="pk-t"><span class="pk-dot"></span>${m.nm}</div><span class="pk-state">${m.state}</span></div><div class="pk-prog"><input type="range" min="0" max="100" value="${m.pct}" style="accent-color:${m.ac}" oninput="MS[${i}].pct=+this.value;renderPB()"><div class="pk-bar"><i style="width:${m.pct}%;background:${m.ac}"></i></div><span class="pk-pct">${m.pct}%</span></div><div class="pk-cmt"><div class="pk-clabel">Comments <span class="hint">· type or paste — pasted text auto-formats</span></div><div class="cbox" contenteditable="true" data-i="${i}" oninput="saveNote(${i},this)" onpaste="visualizePaste(event)">${note}</div></div></div>`;
+  }).join('');
+  $('pbRoll').textContent=Math.round(MS.reduce((s,m)=>s+m.pct,0)/MS.length)+'%';
+}
+function saveNote(i,el){MS[i].note=el.innerHTML;try{localStorage.setItem('augkpi_'+MS[i].id,el.innerHTML);}catch(e){}}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function textToVisual(txt){
+  const raw=txt.replace(/\r/g,'').split('\n');
+  const bullet=l=>/^\s*[•\-\*·▪◦]\s+/.test(l);
+  let out='',inList=false;
+  for(let idx=0;idx<raw.length;idx++){const l=raw[idx],t=l.trim();
+    if(!t){if(inList){out+='</ul>';inList=false;}continue;}
+    if(bullet(l)){if(!inList){out+='<ul>';inList=true;}out+='<li>'+escHtml(t.replace(/^\s*[•\-\*·▪◦]\s+/,''))+'</li>';continue;}
+    if(inList){out+='</ul>';inList=false;}
+    let nb=false;for(let k=idx+1;k<raw.length;k++){if(!raw[k].trim())continue;nb=bullet(raw[k]);break;}
+    const isHead=t.length<=52&&(/[:：]$/.test(t)||t===t.toUpperCase()||nb);
+    if(isHead)out+='<div class="ch">'+escHtml(t.replace(/[:：]$/,''))+'</div>';
+    else out+='<p>'+escHtml(t)+'</p>';
+  }
+  if(inList)out+='</ul>';
+  return out||('<p>'+escHtml(txt)+'</p>');
+}
+function visualizePaste(e){e.preventDefault();const cd=e.clipboardData||window.clipboardData;const txt=cd?cd.getData('text/plain'):'';const html=textToVisual(txt);try{document.execCommand('insertHTML',false,html);}catch(_){}
+  const box=(e.target&&e.target.closest)?e.target.closest('.cbox'):null;if(box){const i=+box.getAttribute('data-i');if(!isNaN(i))saveNote(i,box);}}
+
+/* dictionary */
+const DICT=[['Exit ARR','var(--c1)','Point-in-time contracted ARR (USD), not run-rate. Goal $5.0M.'],
+['Accrued revenue','var(--c2)','Sum of accrued revenue (AIPL + AAMEL) across the window, annualised as Σ × 12 ÷ months, then ÷ (Exit ARR × FX). E.g. Jan–Jul (7 mo) → Σ × 12/7. AAMEL adds in automatically once populated.'],
+['NRR · Ent+Partners','var(--c3)','(Opening MRR_E/P + Σ Expansion − (Σ Churn_E/P − Delayed renewals) − Σ Contraction) ÷ Opening MRR_E/P. Opening = E/P MRR of the month before the window (a month’s opening = prior month’s MRR). Delayed renewals are added back so late renewals aren’t counted as churn. Sums over the selected window; retail excluded.'],
+['Cash runway','var(--c4)','Forward month-by-month simulation from cash in bank: + projected inflow × scenario% + Scribetech UK top-up − monthly spend, counting months until the balance reaches zero. Best 100% / Optimistic 70% / Pessimistic 50% of projected inflow. Goal ≥ 9 months.'],
+['New users added','var(--c5)','New users acquired (source “New Users” column) summed over the window, minus HMG. Projection to Jan-27 = Σ actual new users (Jan-26→as-of) + Σ projected new users (the “Projected Users” column) − HMG. NB: the goal field was the old total-paid-users target (15,000) — set the appropriate new-users-added target in Assumptions.'],
+['Burn multiple','var(--c6)','(− Σ Net burn) ÷ Σ Delta ARR across the window. Goal ≤ 2.0×. Lower is better.'],
+['LTV','var(--c7)','Geo-weighted ARPU × Gross-Margin% × user lifetime ÷ FX. ARPU is MRR-share weighted across geographies on the CURRENT month (e.g. Aug shows July): for each geo, share = geo MRR ÷ total MRR and ARPU = geo MRR ÷ geo users; weighted ARPU = Σ(share × geo ARPU). GM% = (Σ accrued − Σ COGS) ÷ Σ accrued over the basis window (accrued AIPL+AAMEL; no ×12). Lifetime = 1 ÷ monthly E/P churn, where churn = Σ Churn MRR E/P ÷ Σ prior-month MRR E/P over the basis window (revenue-weighted period churn). Delayed renewals are NOT baked in by default; tick “Apply delayed renewals to LTV churn” in Assumptions to net them out (pro-rated to the basis window, floored at 5% of gross churn). The LTV tile back shows the weighted ARPU by region × product that feeds the calculation. Tile toggle switches GM/churn between YTD and current month; weighted ARPU stays current-month.'],
+['CAC','var(--c8)','(Σ AIPL Marketing + Σ AIPL Sales + Σ AAMEL Marketing + Σ AAMEL Sales) ÷ Σ New users across the basis window, ÷ FX. All four spend lines are included. Per new user acquired.'],
+['LTV : CAC','var(--c9)','LTV ÷ CAC. Goal ≥ 3.0×.']];
+const NOTES=[`Cash scenarios scale the projected monthly inflow (the “Cash Projections” column). Scribetech UK ₹20L/mo for 6 months is added on top and is not scenario-scaled. Monthly spend defaults to the trailing 3-month gross outflow (editable).`,
+`Per-tile basis toggle (top-right of each tile): YTD = Jan → the last complete month; current month = that month alone (shows Jul now, Aug from September — automatic). The From→To selector at the top drives the Trends-tab highlight band, not the tiles.`,
+`LTV uses a geo-weighted ARPU — MRR-share weighted across India/GCC/UK/USA/Others on the current month (Jul now). GM% is on accrued revenue: (Σ accrued − Σ COGS) ÷ Σ accrued; lifetime = 1 ÷ monthly E/P churn. The tile toggle switches GM/churn between YTD and current month; the weighted ARPU stays current-month per spec.`,
+`CAC = (AIPL Marketing + AIPL Sales + AAMEL Marketing + AAMEL Sales) ÷ new users ÷ FX — all four spend lines are included. The investor Schedule states the ratio inverted; the standard convention (spend ÷ new users) is used here.`,
+`NRR uses E/P-specific churn and prior-month opening MRR; expansion & contraction are book-wide totals used as proxies. Delayed renewals (a cumulative Jan→as-of figure, editable) are added back so churn is not overstated — converted to a monthly rate and applied pro-rata: the full amount on the YTD basis, ~1/n of it on a single current month. The same add-back reduces the churn used in LTV.`,
+`User KPI = new users added (source “New Users” column), HMG-excluded — a cumulative flow, not the paid-user stock. The goal still shows 15,000, which was the old total-paid-users target; set the correct new-users-added target in Assumptions.`,
+`On the current-month basis, if net-new ARR is ≤ 0 (ARR contracted that month, e.g. Jul), the burn multiple shows “n/m” — the ratio is not meaningful when the denominator is non-positive.`,
+`Upload an Excel export (same “Summary source for DB” layout, incl. the geo×product MRR/Users and AIPL/AAMEL spend columns) or link a published .xlsx/.csv URL to refresh; embedded data is used until then. All columns are matched by header name, so column order can change safely.`,
+`Cash-runway spend basis is switchable (latest / trailing-3 / trailing-6) in Assumptions; default trailing-3 avoids single-month lumpiness. Export PDF prints the current tab.`];
+$('dict').innerHTML=DICT.map(r=>`<div class="row"><div class="k"><span class="sq" style="background:${r[1]}"></span>${r[0]}</div><div class="d">${r[2]}</div></div>`).join('');
+$('notes').innerHTML=NOTES.map(n=>`<div class="n">${n}</div>`).join('');
+
+/* range + presets + tabs + assumptions */
+function initRange(){range={from:Math.max(1,ACTUAL.findIndex(d=>d.m==='2026-01-01')),to:ACTUAL.length-1};if(range.from<1)range.from=1;}
+document.querySelectorAll('#inputs input').forEach(el=>{el.addEventListener('input',render);el.addEventListener('change',render);});
+$('from').onchange=e=>{range.from=+e.target.value;if(range.to<range.from){range.to=range.from;$('to').value=range.to;}clearPre();render();};
+$('to').onchange=e=>{range.to=+e.target.value;if(range.from>range.to){range.from=range.to;$('from').value=range.from;}render();};
+function clearPre(){document.querySelectorAll('.pre').forEach(p=>p.classList.remove('on'));}
+document.querySelectorAll('.pre').forEach(btn=>btn.onclick=()=>{clearPre();btn.classList.add('on');const p=btn.dataset.p,last=ACTUAL.length-1;
+  if(p==='3'){range.to=last;range.from=Math.max(1,last-2);}else if(p==='6'){range.to=last;range.from=Math.max(1,last-5);}
+  else if(p==='ytd'){range.to=last;range.from=Math.max(1,ACTUAL.findIndex(d=>d.m==='2026-01-01'));}else{range.to=last;range.from=1;}
+  $('from').value=range.from;$('to').value=range.to;render();});
+document.querySelectorAll('.nav button').forEach(tb=>tb.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));tb.classList.add('on');$('p-'+tb.dataset.t).classList.add('on');});
+
+/* data upload / link */
+function ingest(rows,label){
+  let hr=-1;
+  for(let i=0;i<rows.length;i++){if(rows[i]&&rows[i].some(c=>String(c||'').toLowerCase().trim()==='month')){hr=i;break;}}
+  if(hr<0){$('dstatus').textContent='No “Month” header row found in the sheet.';return;}
+  const H=rows[hr].map(c=>String(c||'').toLowerCase().replace(/\s+/g,' ').trim());
+  for(let _i=0;_i<=hr;_i++){if(!rows[_i])continue;for(let _j=0;_j<rows[_i].length;_j++){if(String(rows[_i][_j]||'').toLowerCase().includes('current exit arr')){for(let _k=_j+1;_k<rows[_i].length;_k++){const _v=+rows[_i][_k];if(!isNaN(_v)&&_v>0){EXITARR=_v;break;}}}}}
+  const col=(ex,inc)=>{for(const e of ex){const i=H.indexOf(e);if(i>=0)return i;}if(inc)for(let i=0;i<H.length;i++){if(inc.some(p=>H[i].includes(p)))return i;}return -1;};
+  const findSeg=(kind,g,p)=>{const gg=g.toLowerCase(),pp=p.toLowerCase();for(let i=0;i<H.length;i++){const h=H[i];if(kind==='mrr'&&!h.startsWith('mrr'))continue;if(kind==='users'&&!h.includes('paid users'))continue;if(h.includes(gg)&&h.includes(pp))return i;}return -1;};
+  const SEGM={Spectra:{},Omni:{}},SEGU={Spectra:{},Omni:{}};GEOS.forEach(g=>PRODS.forEach(p=>{SEGM[p][g]=findSeg('mrr',g,p);SEGU[p][g]=findSeg('users',g,p);}));
+  const MAP={m:col(['month'],['month']),inflow:col(['inflow'],['inflow']),outflow:col(['outflow'],['outflow']),netBurn:col(['net burn'],['net burn']),accruedAIPL:col(['accrued mrr aipl','accrued aipl'],['aipl']),accruedAAMEL:col(['accrued mrr aamel','accrued aamel'],['aamel']),mrrRetail:col(['mrr retail'],['mrr retail']),mrrEP:col(['mrr e/p','mrr e / p'],['mrr e/p']),expansion:col(['expansion mrr'],['expansion']),arrINR:col(['arr (inr)'],null),deltaARR:col(['delta arr (inr)','delta arr'],['delta arr']),users:col(['net paid users'],['paid users']),newUsers:col(['new users'],null),churnEP:col(['churn mrr e/p'],['churn mrr e/p']),contraction:col(['contraction mrr (inr)','contraction mrr'],['contraction']),arpu:col(['arpu (inr)','arpu'],['arpu']),mrrOrg:col(['mrr org'],['mrr org']),marketing:col(['aipl marketing spend','marketing spend'],['marketing']),sales:col(['aipl sales spend','sales spend'],['sales']),aamelMkt:col(['aamel marketing spend'],null),aamelSales:col(['aamel sales spend'],null),gm:col(['gross margin %','gross margin'],['gross margin']),cogs:col(['cogs'],['cogs']),churnRateARR:col(['churn rate arr'],['churn rate arr']),cashInBank:col(['cash in bank (inr)','cash in bank'],['cash in bank']),cashProj:col(['cash projections','cash projection'],['cash projection']),arrNewProj:col(['arr net new addition projections ($)'],['arr net new']),projectedNewUsers:col(['net new user addition projections per month'],['user addition projection'])};
+  const out=[];
+  for(let i=hr+1;i<rows.length;i++){const r=rows[i]||[];let m=r[MAP.m];let d=null;
+    if(m instanceof Date)d=m;else if(typeof m==='number'&&m>30000)d=new Date(Math.round((m-25569)*86400*1000));else if(typeof m==='string'&&/\d{4}-\d{2}/.test(m))d=new Date(m);
+    if(!d||isNaN(d))continue;let _mm=new Date(d.getFullYear(),d.getMonth(),1);if(d.getDate()>15)_mm=new Date(d.getFullYear(),d.getMonth()+1,1);const iso=_mm.getFullYear()+'-'+String(_mm.getMonth()+1).padStart(2,'0')+'-01';const rec={m:iso};
+    for(const k in MAP){if(k==='m')continue;const idx=MAP[k];const v=(idx>=0)?r[idx]:0;rec[k]=(typeof v==='number')?v:(parseFloat(v)||0);}const seg={mrr:{Spectra:{},Omni:{}},users:{Spectra:{},Omni:{}}};GEOS.forEach(g=>PRODS.forEach(p=>{seg.mrr[p][g]=SEGM[p][g]>=0?(+r[SEGM[p][g]]||0):0;seg.users[p][g]=SEGU[p][g]>=0?(+r[SEGU[p][g]]||0):0;}));rec.seg=seg;out.push(rec);}
+  if(out.length<3){$('dstatus').textContent='Found the sheet but fewer than 3 monthly rows — check the layout.';return;}
+  const miss=Object.keys(MAP).filter(k=>MAP[k]<0&&!['accruedAAMEL','aamelMkt','aamelSales','mrrOrg'].includes(k));
+  DATA=out;setActuals();initRange();fillSelects();clearPre();document.querySelector('.pre[data-p=ytd]').classList.add('on');$('outflow').value=Math.round(outflowBasisVal());render();
+  $('dstatus').textContent='Loaded '+out.length+' months · spend ₹'+((+$('outflow').value)/1e6).toFixed(1)+'M'+(miss.length?(' · missing: '+miss.join(', ')):' · all columns matched by name');
+}
+function readXLSX(buf,label){try{const wb=XLSX.read(buf,{type:'array',cellDates:true});const nm=wb.SheetNames.find(n=>/summary source for db/i.test(n))||wb.SheetNames.find(n=>/summary|db/i.test(n))||wb.SheetNames[0];const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true});ingest(rows,nm);}catch(e){$('dstatus').textContent='Parse error: '+e.message;}}
+$('xlfile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;$('dstatus').textContent='Reading '+f.name+'…';const rd=new FileReader();rd.onload=ev=>readXLSX(new Uint8Array(ev.target.result),f.name);rd.readAsArrayBuffer(f);});
+$('loadUrl').onclick=()=>{const u=$('url').value.trim();if(!u)return;$('dstatus').textContent='Fetching…';
+  fetch(u).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer();}).then(b=>readXLSX(new Uint8Array(b),'linked sheet')).catch(e=>{$('dstatus').textContent='Link failed ('+e.message+'). The sheet must be published to the web and allow cross-origin access.';});};
+
+/* init */
+function outflowBasisVal(){const b=$('spendBasis').value;const arr=ACTUAL.filter(d=>d.outflow>0).map(d=>d.outflow);const n=arr.length;if(!n)return 0;
+ if(b==='latest')return arr[n-1];
+ const k=(b==='t6')?6:3;const s=arr.slice(Math.max(0,n-k));return s.reduce((a,x)=>a+x,0)/s.length;}
+function updateSpendNote(){const el=$('spendNote');if(!el)return;const b=$('spendBasis').value;const w=ACTUAL.filter(d=>d.outflow>0);const k=(b==='latest')?1:(b==='t6')?6:3;const u=w.slice(Math.max(0,w.length-k));el.textContent='Auto '+(b==='latest'?'latest month':(b==='t6'?'trailing-6':'trailing-3'))+' of gross outflow: '+(u.length?u.map(d=>mlabel(d.m)).join(', '):'—')+' → ₹'+(Math.round(outflowBasisVal())/1e6).toFixed(2)+'M (edit field to override)';}
+function applyBasis(){$('outflow').value=Math.round(outflowBasisVal());render();}
+function flattenData(){
+  const base=['m','inflow','outflow','netBurn','mrrOrg','mrrEP','mrrRetail','accruedAIPL','accruedAAMEL','expansion','contraction','churnEP','arrINR','deltaARR','users','newUsers','arpu','marketing','sales','aamelMkt','aamelSales','gm','cogs','cashInBank','cashProj','arrNewProj','projectedNewUsers'];
+  const segC=[];PRODS.forEach(p=>GEOS.forEach(g=>segC.push('MRR_'+g+'_'+p)));PRODS.forEach(p=>GEOS.forEach(g=>segC.push('Users_'+g+'_'+p)));
+  const rows=DATA.map(d=>{const r=base.map(f=>d[f]);PRODS.forEach(p=>GEOS.forEach(g=>r.push(d.seg?d.seg.mrr[p][g]:'')));PRODS.forEach(p=>GEOS.forEach(g=>r.push(d.seg?d.seg.users[p][g]:'')));return r;});
+  return [base.concat(segC)].concat(rows);
+}
+function exportData(){
+  if(typeof XLSX==='undefined'){alert('Excel library needs an internet connection to load.');return;}
+  const c=cfg(),k=kpis(c),y=k.ytd,cu=k.cur,wb=XLSX.utils.book_new(),S=a=>XLSX.utils.aoa_to_sheet(a);
+  XLSX.utils.book_append_sheet(wb,S(flattenData()),'Monthly data');
+  const kp=[['KPI','YTD','Current ('+mlabel(k.asOf)+')','Goal'],
+    ['Exit ARR (USD)',k.exit,k.exit,c.gExit],['Accrued % of Exit ARR',y.accrued,cu.accrued,c.gAcc],
+    ['NRR (E/P)',y.nrr,cu.nrr,c.gNrr],['New users added',y.newAdds,cu.newAdds,c.gCust],
+    ['Burn multiple',y.burn,(cu.newARR<=0?'n/m':cu.burn),c.gBurn],['LTV (USD)',y.ltv,cu.ltv,''],
+    ['CAC (USD)',y.cac,cu.cac,''],['LTV:CAC',y.lc,cu.lc,c.gLc],
+    ['Weighted ARPU (INR, current)',k.wA.w,k.wA.w,''],['Runway Best/Opt/Pess (mo)',k.runB,k.runO+' / '+k.runP,c.gRun]];
+  XLSX.utils.book_append_sheet(wb,S(kp),'KPI summary');
+  const comp=[['Component (YTD '+y.winL+')','Value'],['Sum accrued INR',y.accrSum],['Annualised accrued INR',y.accrAnn],['Exit ARR INR',y.exitINR],['Opening MRR E/P',y.openEP],['Expansion',y.exp],['Churn E/P',y.chn],['Contraction',y.con],['GM% accrued',y.gm],['Monthly E/P churn',y.epChurn],['Lifetime mo',y.life],['AIPL S&M',y.smAIPL],['AAMEL S&M',y.smAAMEL],['Total S&M',y.sm],['New users',y.nu],['Net burned',y.burned],['Net-new ARR',y.newARR]];
+  XLSX.utils.book_append_sheet(wb,S(comp),'YTD components');
+  const seg=[['Basis','Geography','Product','MRR (INR)','Paid users','ARPU (INR)']];
+  [['Current',k.curWin],['YTD',k.ytdWin]].forEach(function(e){const T=segTable(e[1]);GEOS.forEach(g=>PRODS.forEach(p=>{const a=T.agg[g][p];seg.push([e[0],g,p,a.mrr,a.u,a.arpu]);}));});
+  XLSX.utils.book_append_sheet(wb,S(seg),'Segment ARPU');
+  const as=[['Assumption','Value'],['FX INR/USD',c.fx],['HMG excluded',c.hmg],['Delayed renewals INR',c.delayedRenew],['Cash in bank INR',c.cash],['Best %',c.sBest*100],['Optimistic %',c.sOpt*100],['Pessimistic %',c.sPess*100],['Monthly spend INR',c.outflow],['Scribetech INR/mo',c.scribeAmt],['Scribetech months',c.scribeMonths],['Goal Exit ARR',c.gExit],['Goal Accrued',c.gAcc],['Goal NRR',c.gNrr],['Goal runway',c.gRun],['Goal new users',c.gCust],['Goal LTV:CAC',c.gLc],['Ceiling burn',c.gBurn]];
+  XLSX.utils.book_append_sheet(wb,S(as),'Assumptions');
+  XLSX.writeFile(wb,'Augnito_KPI_backend_data.xlsx');
+  const st=document.getElementById('dstatus');if(st)st.textContent='Exported backend data · 5 sheets';
+}
+function refreshDash(){setActuals();initRange();fillSelects();clearPre();var y=document.querySelector('.pre[data-p=ytd]');if(y)y.classList.add('on');render();var s=document.getElementById('dstatus');if(s)s.textContent='Refreshed · as of '+mlabel(ACTUAL[ACTUAL.length-1].m)+' · '+DATA.length+' months';}
+$('pdf').onclick=()=>window.print();
+$('expData2').onclick=exportData;
+$('refreshBtn2').onclick=refreshDash;
+$('spendBasis').onchange=applyBasis;
+['chArr','chUsersProj','chCashProj','chInflowProj','chExpProj','chMix','chBurn'].forEach(id=>bindHover(document.getElementById(id),id));
+
+/* ================= LIVE DATA (SharePoint via Microsoft Graph / MSAL) =================
+   >>> ONE THING TO DO AFTER YOU CREATE THE AZURE STATIC WEB APP (Phase D):
+       paste its URL into REDIRECT_URI below (e.g. https://xxxx.azurestaticapps.net),
+       then re-upload this file to Azure. Until that line has a URL, the dashboard
+       simply runs on the embedded snapshot below. Nothing else to change. <<< */
+const LIVECFG={
+  clientId:'a7a0ca44-ae31-4a95-b5a3-14924251fd2d',
+  tenantId:'ba8dd42d-f909-42a2-8058-84e857560c49',
+  REDIRECT_URI:'',   /* <== PASTE AZURE URL HERE (leave '' for snapshot mode) */
+  shareUrl:"https://scribetechindia.sharepoint.com/:x:/r/sites/KPITracker/_layouts/15/Doc.aspx?sourcedoc=%7B9BF30720-16DA-443B-8691-59607E1875F9%7D&file=KPI%27s%206%20months%20COPY%202.xlsx&action=default&mobileredirect=true",
+  scopes:['Sites.Read.All']
+};
+let _msal=null;
+function liveEnabled(){return /^https:\/\//.test(LIVECFG.REDIRECT_URI);}
+function dstat(t){var s=document.getElementById('dstatus');if(s)s.textContent=t;}
+function _b64url(s){return btoa(s).replace(/=+$/,'').replace(/\//g,'_').replace(/\+/g,'-');}
+async function goLive(interactive){
+  if(!liveEnabled()){dstat('Embedded snapshot · live SharePoint source not configured yet');return;}
+  if(typeof msal==='undefined'){dstat('Sign-in library blocked — showing embedded snapshot');return;}
+  try{
+    if(!_msal){
+      _msal=new msal.PublicClientApplication({auth:{clientId:LIVECFG.clientId,authority:'https://login.microsoftonline.com/'+LIVECFG.tenantId,redirectUri:LIVECFG.REDIRECT_URI},cache:{cacheLocation:'sessionStorage'}});
+      const rr=await _msal.handleRedirectPromise(); if(rr&&rr.account)_msal.setActiveAccount(rr.account);
+    }
+    let acct=_msal.getActiveAccount()||_msal.getAllAccounts()[0];
+    if(!acct){ if(interactive){ await _msal.loginRedirect({scopes:LIVECFG.scopes}); } else { dstat('Embedded snapshot · click “Connect live” to sign in'); } return; }
+    _msal.setActiveAccount(acct);
+    let tok;
+    try{ tok=(await _msal.acquireTokenSilent({scopes:LIVECFG.scopes,account:acct})).accessToken; }
+    catch(e){ if(interactive){ await _msal.acquireTokenRedirect({scopes:LIVECFG.scopes}); } else { dstat('Embedded snapshot · click “Connect live” to sign in'); } return; }
+    dstat('Loading live data from SharePoint…');
+    const sid='u!'+_b64url(LIVECFG.shareUrl);
+    const r=await fetch('https://graph.microsoft.com/v1.0/shares/'+sid+'/driveItem/content',{headers:{Authorization:'Bearer '+tok}});
+    if(!r.ok) throw new Error('Graph '+r.status);
+    const buf=await r.arrayBuffer();
+    readXLSX(new Uint8Array(buf), "KPI live (SharePoint)");
+    dstat('🟢 Live · '+(acct.username||'signed in')+' · '+new Date().toLocaleTimeString());
+  }catch(e){ dstat('⚠ Live fetch failed ('+(e.message||e)+') — showing embedded snapshot'); }
+}
+function bootLive(){ if(liveEnabled()){ goLive(false); } }
+
+setActuals();initRange();fillSelects();$('outflow').value=Math.round(outflowBasisVal());render();renderPB();bootLive();
+</script>
+</body></html>
